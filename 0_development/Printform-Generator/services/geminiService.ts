@@ -10,6 +10,7 @@ import {
   grepSearchTool,
   diffCheckTool,
   printSafeValidatorTool,
+  loadReferenceTemplateTool,
 } from './gemini/toolDefinitions';
 import {
   BASE_SYSTEM_INSTRUCTION,
@@ -85,6 +86,7 @@ export class GeminiService {
     if (this.activeTools.includes('diff_check')) functionDeclarations.push(diffCheckTool);
     if (this.activeTools.includes('undo_last')) functionDeclarations.push(undoLastTool);
     if (this.activeTools.includes('print_safe_validator')) functionDeclarations.push(printSafeValidatorTool);
+    if (this.activeTools.includes('load_reference_template')) functionDeclarations.push(loadReferenceTemplateTool);
 
     // Always push function declarations if they exist
     if (functionDeclarations.length > 0) {

@@ -41,6 +41,7 @@ export const useAgentChat = ({
   const referenceImageRef = useRef<{ mimeType: string; data: string } | undefined>(undefined);
   const previewImageRef = useRef<{ mimeType: string; data: string } | undefined>(undefined);
   const previewWaitersRef = useRef<Array<() => void>>([]);
+  const previewVersionRef = useRef(0);
   const previewErrorCountRef = useRef(0);
   const previewWarnedRef = useRef(false);
 
@@ -73,6 +74,7 @@ export const useAgentChat = ({
 
   const setPreviewSnapshot = useCallback((image: { mimeType: string; data: string }) => {
     previewImageRef.current = image;
+    previewVersionRef.current += 1;
     previewErrorCountRef.current = 0;
     previewWarnedRef.current = false;
     const waiters = previewWaitersRef.current;
@@ -99,12 +101,20 @@ export const useAgentChat = ({
     [setMessages],
   );
 
-  const waitForNextPreviewSnapshot = useCallback((timeoutMs: number = 1500) => {
-    return new Promise<void>((resolve) => {
-      const timer = window.setTimeout(() => resolve(), timeoutMs);
+  const getPreviewSnapshotVersion = useCallback(() => previewVersionRef.current, []);
+
+  const waitForNextPreviewSnapshot = useCallback((timeoutMs: number = 1500, minVersion?: number) => {
+    return new Promise<boolean>((resolve) => {
+      const baseline = typeof minVersion === 'number' ? minVersion : previewVersionRef.current;
+      if (previewVersionRef.current > baseline) {
+        resolve(true);
+        return;
+      }
+
+      const timer = window.setTimeout(() => resolve(false), timeoutMs);
       previewWaitersRef.current.push(() => {
         window.clearTimeout(timer);
-        resolve();
+        resolve(true);
       });
     });
   }, []);
@@ -151,6 +161,8 @@ export const useAgentChat = ({
         updateFileContent,
         revertToLatestHistory,
         diffCheckEnabled: (settings.activeTools || []).includes('diff_check'),
+        autoApplyDiff: Boolean(settings.autoApplyDiff),
+        strictPreviewGate: Boolean(settings.strictPreviewGate),
         requestPreviewSnapshot: () => {
           try {
             window.dispatchEvent(new CustomEvent('formpreview:request_snapshot'));
@@ -158,6 +170,7 @@ export const useAgentChat = ({
             // ignore
           }
         },
+        getPreviewSnapshotVersion,
         tasksRef,
         referenceImageRef,
         previewImageRef,
@@ -174,6 +187,7 @@ export const useAgentChat = ({
       getAllFiles,
       updateFileContent,
       revertToLatestHistory,
+      getPreviewSnapshotVersion,
       setBotStatus,
       waitForNextPreviewSnapshot,
     ],

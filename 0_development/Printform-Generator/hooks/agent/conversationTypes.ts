@@ -9,11 +9,14 @@ export interface ConversationHandlerDependencies {
   updateFileContent: (content: string, description: string) => void;
   revertToLatestHistory: () => boolean;
   diffCheckEnabled: boolean;
+  autoApplyDiff: boolean;
+  strictPreviewGate: boolean;
   requestPreviewSnapshot: () => void;
+  getPreviewSnapshotVersion: () => number;
   tasksRef: MutableRefObject<AgentTask[]>;
   referenceImageRef: MutableRefObject<{ mimeType: string; data: string } | undefined>;
   previewImageRef: MutableRefObject<{ mimeType: string; data: string } | undefined>;
-  waitForNextPreviewSnapshot: (timeoutMs?: number) => Promise<void>;
+  waitForNextPreviewSnapshot: (timeoutMs?: number, minVersion?: number) => Promise<boolean>;
   setTasks: Dispatch<SetStateAction<AgentTask[]>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;

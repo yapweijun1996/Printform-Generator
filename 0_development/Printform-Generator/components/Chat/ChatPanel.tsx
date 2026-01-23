@@ -32,6 +32,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, input, setInput, onSend
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Prevent event from bubbling up to Monaco Editor's global listeners
+    e.stopPropagation();
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendClick();

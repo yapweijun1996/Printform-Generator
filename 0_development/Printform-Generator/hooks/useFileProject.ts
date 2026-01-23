@@ -4,7 +4,7 @@ import { INITIAL_HTML } from '../utils/templates';
 import { clearProjectState, loadProjectState, saveProjectState } from '../utils/persistedProject';
 
 export const useFileProject = () => {
-  const [files, setFiles] = useState<ProjectFile[]>([
+  const initialFiles: ProjectFile[] = [
     {
       id: 'default',
       name: 'invoice-template.html',
@@ -12,24 +12,35 @@ export const useFileProject = () => {
       content: INITIAL_HTML,
       updatedAt: Date.now(),
     },
-  ]);
+  ];
+  const [files, setFiles] = useState<ProjectFile[]>(initialFiles);
+  const filesRef = useRef<ProjectFile[]>(initialFiles);
 
   const [history, setHistory] = useState<FileHistory[]>([]);
-  const [activeFileId, setActiveFileId] = useState<string>('default');
+  const historyRef = useRef<FileHistory[]>([]);
+  const [activeFileId, setActiveFileIdState] = useState<string>('default');
+  const activeFileIdRef = useRef<string>('default');
   const hydratedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
 
   const getActiveFile = useCallback(() => {
-    return files.find((f) => f.id === activeFileId) || files[0];
-  }, [files, activeFileId]);
+    const list = filesRef.current;
+    const id = activeFileIdRef.current;
+    return list.find((f) => f.id === id) || list[0];
+  }, []);
 
   const getAllFiles = useCallback(() => {
-    return files;
-  }, [files]);
+    return filesRef.current;
+  }, []);
 
   const getHistory = useCallback(() => {
-    return history;
-  }, [history]);
+    return historyRef.current;
+  }, []);
+
+  const setActiveFileId = useCallback((id: string) => {
+    activeFileIdRef.current = id;
+    setActiveFileIdState(id);
+  }, []);
 
   // Hydrate project state from IndexedDB (best-effort)
   useEffect(() => {
@@ -41,9 +52,12 @@ export const useFileProject = () => {
         return;
       }
 
+      filesRef.current = persisted.files;
+      historyRef.current = persisted.history || [];
+      activeFileIdRef.current = persisted.activeFileId || persisted.files[0]?.id || 'default';
       setFiles(persisted.files);
       setHistory(persisted.history || []);
-      setActiveFileId(persisted.activeFileId || persisted.files[0]?.id || 'default');
+      setActiveFileIdState(activeFileIdRef.current);
       hydratedRef.current = true;
     })();
     return () => {
@@ -76,14 +90,18 @@ export const useFileProject = () => {
         description: description,
         content: currentFile.content,
       };
-      setHistory((prev) => [newHistoryEntry, ...prev]);
+      const nextHistory = [newHistoryEntry, ...historyRef.current];
+      historyRef.current = nextHistory;
+      setHistory(nextHistory);
 
       // Update File
-      setFiles((prev) =>
-        prev.map((f) => (f.id === activeFileId ? { ...f, content: newContent, updatedAt: Date.now() } : f)),
+      const nextFiles = filesRef.current.map((f) =>
+        f.id === activeFileIdRef.current ? { ...f, content: newContent, updatedAt: Date.now() } : f,
       );
+      filesRef.current = nextFiles;
+      setFiles(nextFiles);
     },
-    [activeFileId, getActiveFile],
+    [getActiveFile],
   );
 
   const revertToHistory = useCallback(
@@ -94,23 +112,28 @@ export const useFileProject = () => {
   );
 
   const revertToLatestHistory = useCallback(() => {
-    const latest = history[0];
+    const latest = historyRef.current[0];
     if (!latest) return false;
     updateFileContent(latest.content, `Undo: ${latest.description}`);
     return true;
-  }, [history, updateFileContent]);
+  }, [updateFileContent]);
 
-  const createNewFile = useCallback((name: string, content: string) => {
-    const newFile: ProjectFile = {
-      id: Date.now().toString(),
-      name,
-      language: 'html',
-      content: content || INITIAL_HTML,
-      updatedAt: Date.now(),
-    };
-    setFiles((prev) => [newFile, ...prev]);
-    setActiveFileId(newFile.id);
-  }, []);
+  const createNewFile = useCallback(
+    (name: string, content: string) => {
+      const newFile: ProjectFile = {
+        id: Date.now().toString(),
+        name,
+        language: 'html',
+        content: content || INITIAL_HTML,
+        updatedAt: Date.now(),
+      };
+      const next = [newFile, ...filesRef.current];
+      filesRef.current = next;
+      setFiles(next);
+      setActiveFileId(newFile.id);
+    },
+    [setActiveFileId],
+  );
 
   const resetProject = useCallback(async () => {
     await clearProjectState();
@@ -122,9 +145,12 @@ export const useFileProject = () => {
       content: INITIAL_HTML,
       updatedAt: now,
     };
+    filesRef.current = [defaultFile];
+    historyRef.current = [];
+    activeFileIdRef.current = 'default';
     setFiles([defaultFile]);
     setHistory([]);
-    setActiveFileId('default');
+    setActiveFileIdState('default');
   }, []);
 
   return {

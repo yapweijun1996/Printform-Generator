@@ -1,6 +1,7 @@
 import { Sender } from '../../types';
 import type { ConversationHandlerDependencies } from './conversationTypes';
 import { executeToolCall } from './toolExecutor';
+import { maybeHandleDiffConfirmation } from './diffConfirmation';
 
 export const handleToolCallFlow = async (
   functionCallData: any,
@@ -16,10 +17,8 @@ export const handleToolCallFlow = async (
     tasksRef,
     setTasks,
     setMessages,
-    setIsLoading,
     setBotStatus,
     waitForNextPreviewSnapshot,
-    diffCheckEnabled,
   } = deps;
 
   let friendlyActionName = 'Executing tool...';
@@ -41,7 +40,8 @@ export const handleToolCallFlow = async (
     });
 
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
-      await waitForNextPreviewSnapshot(1400);
+      const before = deps.getPreviewSnapshotVersion();
+      await waitForNextPreviewSnapshot(1400, before);
     }
 
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
@@ -114,94 +114,21 @@ export const handleToolCallFlow = async (
     await continueConversation([functionResponsePart], recursionDepth + 1);
   };
 
-  const isTextToolCall = String(functionCallData.id || '').startsWith('text-tool-');
-  if (
-    diffCheckEnabled &&
-    !isTextToolCall &&
-    (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')
-  ) {
-    const diffArgs =
-      functionCallData.name === 'modify_code'
-        ? {
-            operation: functionCallData.args?.operation,
-            search_snippet: functionCallData.args?.search_snippet,
-            new_code: functionCallData.args?.new_code,
-          }
-        : {
-            operation: functionCallData.args?.position === 'before' ? 'insert_before' : 'insert_after',
-            target_snippet: functionCallData.args?.target_snippet,
-            new_code: functionCallData.args?.new_code,
-          };
-
-    const diffResult = await executeToolCall('diff_check', diffArgs, {
+  const handled = await maybeHandleDiffConfirmation({
+    functionCallData,
+    recursionDepth,
+    deps,
+    runToolAndContinue,
+    toolDeps: {
       getActiveFile,
       getAllFiles,
       updateFileContent,
       revertToLatestHistory,
       tasksRef,
       setTasks,
-    });
-
-    setBotStatus(undefined);
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.sender === Sender.Bot && msg.isStreaming ? { ...msg, isStreaming: false, statusText: undefined } : msg,
-      ),
-    );
-
-    const confirmId = `confirm-${Date.now()}`;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: (Date.now() + 10).toString(),
-        sender: Sender.Bot,
-        text: '我准备要改动代码。请先确认变更预览（diff）。',
-        timestamp: Date.now(),
-        collapsible: {
-          title: 'Diff Preview（点击展开）',
-          content: diffResult.output,
-          defaultOpen: false,
-        },
-      },
-      {
-        id: confirmId,
-        sender: Sender.Bot,
-        text: '要应用这些改动吗？',
-        timestamp: Date.now(),
-        actions: [
-          {
-            label: 'Apply',
-            variant: 'primary',
-            onAction: async () => {
-              setMessages((prev) => prev.map((m) => (m.id === confirmId ? { ...m, actions: [] } : m)));
-              setIsLoading(true);
-              await runToolAndContinue();
-            },
-          },
-          {
-            label: 'Cancel',
-            variant: 'danger',
-            onAction: () => {
-              setMessages((prev) => prev.map((m) => (m.id === confirmId ? { ...m, actions: [] } : m)));
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: (Date.now() + 11).toString(),
-                  sender: Sender.Bot,
-                  text: '已取消：不会应用任何改动。',
-                  timestamp: Date.now(),
-                },
-              ]);
-              setIsLoading(false);
-            },
-          },
-        ],
-      },
-    ]);
-
-    setIsLoading(false);
-    return;
-  }
+    },
+  });
+  if (handled) return;
 
   await runToolAndContinue();
 };

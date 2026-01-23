@@ -59,6 +59,12 @@ export const AVAILABLE_TOOLS: ToolCategory[] = [
         implemented: true,
       },
       {
+        id: 'load_reference_template',
+        label: 'Load Reference Template',
+        description: 'Load PrintForm.js reference templates from examples.',
+        implemented: true,
+      },
+      {
         id: 'image_analysis',
         label: 'Vision Analysis',
         description: 'Understand uploaded form images.',
@@ -143,3 +149,5 @@ export const GEMINI_MODELS = [
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
+
+export const DEFAULT_GEMINI_MODEL_ID = GEMINI_MODELS[0]?.id || 'gemini-3-pro-preview';

@@ -16,6 +16,7 @@ export const processConversationTurn = async (
     referenceImageRef,
     previewImageRef,
     requestPreviewSnapshot,
+    getPreviewSnapshotVersion,
     waitForNextPreviewSnapshot,
     setMessages,
     setIsLoading,
@@ -50,11 +51,30 @@ export const processConversationTurn = async (
   if (!service) throw new Error('Gemini service not initialized');
 
   // Preflight: refresh preview snapshot before asking the model to amend code (best-effort).
-  try {
+  if (recursionDepth === 0) {
+    const beforeVersion = getPreviewSnapshotVersion();
     requestPreviewSnapshot();
-    await waitForNextPreviewSnapshot(900);
-  } catch {
-    // ignore
+    const ok = await waitForNextPreviewSnapshot(900, beforeVersion);
+    const hasAnySnapshot = Boolean(previewImageRef.current);
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `preflight-${Date.now()}`,
+        sender: Sender.Bot,
+        text: ok
+          ? 'Preflight：已刷新到最新 Preview 快照（将用于本轮改动决策）。'
+          : hasAnySnapshot
+            ? 'Preflight：Preview 快照刷新超时（将继续使用上一次快照）。'
+            : 'Preflight：未获取到 Preview 快照（将仅依据当前代码与任务上下文继续）。',
+        timestamp: Date.now(),
+        collapsible: {
+          title: 'Preflight Audit（点击展开）',
+          content: `snapshotRefreshed=${ok}\npreviousVersion=${beforeVersion}\ncurrentVersion=${getPreviewSnapshotVersion()}\ntimeoutMs=900`,
+          defaultOpen: false,
+        },
+      },
+    ]);
   }
 
   const botMessageId = (Date.now() + 1).toString();

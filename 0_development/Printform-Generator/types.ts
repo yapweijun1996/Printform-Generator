@@ -79,6 +79,8 @@ export interface UserSettings {
   pageWidth: string;
   pageHeight: string;
   minRowItemsForPaginationTest: number;
+  autoApplyDiff: boolean;
+  strictPreviewGate: boolean;
 }
 
 export type ViewMode = 'preview' | 'code' | 'split';

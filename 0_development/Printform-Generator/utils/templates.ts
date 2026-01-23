@@ -1,5 +1,5 @@
 export const INITIAL_HTML = `
-<div class="printform" style="box-sizing: border-box; padding: 20px; width: 750px; margin: 0 auto; background: white; font-family: 'Inter', sans-serif; color: #1e293b;">
+<div class="printform" style="box-sizing: border-box; padding: 20px; width: 750px; margin: 0 auto; background: white; font-family: 'Inter', sans-serif; color: #1e293b; font-size: 9pt; line-height: 1.3;">
   
   <!-- 
     STRICT TABLE RULE: 

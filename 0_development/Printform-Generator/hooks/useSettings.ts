@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { UserSettings } from '../types';
-import { IMPLEMENTED_TOOL_IDS, ALL_TOOL_IDS } from '../constants';
+import { IMPLEMENTED_TOOL_IDS, ALL_TOOL_IDS, DEFAULT_GEMINI_MODEL_ID } from '../constants';
 
 export const useSettings = () => {
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -14,10 +14,12 @@ export const useSettings = () => {
         parsed.activeTools = filteredTools.length > 0 ? filteredTools : IMPLEMENTED_TOOL_IDS;
         return {
           apiKey: (parsed.apiKey || process.env.API_KEY || '').trim(),
-          model: parsed.model || 'gemini-3-pro-preview',
+          model: parsed.model || DEFAULT_GEMINI_MODEL_ID,
           activeTools: parsed.activeTools,
           pageWidth: parsed.pageWidth || '750px',
           pageHeight: parsed.pageHeight || '1050px',
+          autoApplyDiff: Boolean(parsed.autoApplyDiff),
+          strictPreviewGate: Boolean(parsed.strictPreviewGate),
           minRowItemsForPaginationTest:
             typeof parsed.minRowItemsForPaginationTest === 'number' &&
             Number.isFinite(parsed.minRowItemsForPaginationTest)
@@ -30,10 +32,12 @@ export const useSettings = () => {
     }
     return {
       apiKey: (process.env.API_KEY || '').trim(),
-      model: 'gemini-3-pro-preview',
+      model: DEFAULT_GEMINI_MODEL_ID,
       activeTools: IMPLEMENTED_TOOL_IDS,
       pageWidth: '750px',
       pageHeight: '1050px',
+      autoApplyDiff: false,
+      strictPreviewGate: false,
       minRowItemsForPaginationTest: 70,
     };
   });

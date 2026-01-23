@@ -171,6 +171,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
           />
 
           {/* 4. Toolbox Selection */}
+          <div className="bg-white p-5 rounded-lg border border-erp-200 shadow-sm">
+            <h4 className="text-sm font-bold text-erp-800 uppercase tracking-wide mb-4 border-b border-erp-100 pb-2">
+              Change Application
+            </h4>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={Boolean(localSettings.strictPreviewGate)}
+                onChange={(e) => setLocalSettings({ ...localSettings, strictPreviewGate: e.target.checked })}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div>
+                <div className="text-sm font-semibold text-erp-700">Strict Preview Gate</div>
+                <div className="text-xs text-erp-500 mt-0.5">
+                  启用后：如果本轮无法刷新到最新 Preview 快照，将阻止 AI 执行 modify/insert
+                  （避免在“看不到最新预览”的情况下改码）。
+                </div>
+              </div>
+            </label>
+            <div className="h-4" />
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={Boolean(localSettings.autoApplyDiff)}
+                onChange={(e) => setLocalSettings({ ...localSettings, autoApplyDiff: e.target.checked })}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div>
+                <div className="text-sm font-semibold text-erp-700">Auto-apply after Diff Preview</div>
+                <div className="text-xs text-erp-500 mt-0.5">
+                  启用后，AI 会先生成 diff 预览，但会自动执行修改（不再弹出 “要应用这些改动吗？” 确认）。
+                </div>
+              </div>
+            </label>
+          </div>
+
           <ToolsPanel
             activeTools={localSettings.activeTools}
             onToggleTool={toggleTool}
