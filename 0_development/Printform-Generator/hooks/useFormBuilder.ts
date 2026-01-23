@@ -1,11 +1,10 @@
-
 import { useSettings } from './useSettings';
 import { useFileProject } from './useFileProject';
 import { useAgentChat } from './useAgentChat';
 
 /**
  * useFormBuilder (Main Facade Hook)
- * 
+ *
  * Aggregates logic from:
  * 1. useSettings - API Keys & Preferences
  * 2. useFileProject - Files, Content, History
@@ -25,19 +24,18 @@ export const useFormBuilder = () => {
     updateFileContent,
     createNewFile,
     revertToHistory,
-    getActiveFile // Helper for Agent
+    revertToLatestHistory,
+    getActiveFile, // Helper for Agent
+    getAllFiles,
   } = useFileProject();
 
   // 3. Agent & Chat State (Needs access to File & Settings)
-  const {
-    messages,
-    tasks,
-    isLoading,
-    sendMessage
-  } = useAgentChat({
+  const { messages, tasks, isLoading, sendMessage, setPreviewSnapshot, notifyPreviewSnapshotError } = useAgentChat({
     settings,
     getActiveFile,
-    updateFileContent
+    getAllFiles,
+    updateFileContent,
+    revertToLatestHistory,
   });
 
   return {
@@ -46,7 +44,9 @@ export const useFormBuilder = () => {
     tasks,
     isLoading,
     sendMessage,
-    
+    setPreviewSnapshot,
+    notifyPreviewSnapshotError,
+
     // File System
     files,
     activeFileId,
@@ -56,9 +56,10 @@ export const useFormBuilder = () => {
     createNewFile,
     updateFileContent,
     revertToHistory,
+    revertToLatestHistory,
 
     // Settings
     settings,
-    updateSettings
+    updateSettings,
   };
 };

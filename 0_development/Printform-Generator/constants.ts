@@ -1,49 +1,145 @@
+export interface ToolItem {
+  id: string;
+  label: string;
+  description: string;
+  implemented: boolean;
+}
 
-export const AVAILABLE_TOOLS = [
+export interface ToolCategory {
+  category: string;
+  items: ToolItem[];
+}
+
+export const AVAILABLE_TOOLS: ToolCategory[] = [
   {
-    category: "Core Editing",
+    category: 'Core Editing',
     items: [
-      { id: 'code_replace', label: 'Smart Replace', description: 'Modify specific code blocks safely.' },
-      { id: 'code_rewrite', label: 'Full Rewrite', description: 'Re-generate entire files (Aggressive).' },
-      { id: 'code_insert', label: 'Content Insert', description: 'Inject rows/columns without rewriting.' },
-      { id: 'undo_last', label: 'Undo Capability', description: 'Allow agent to revert bad edits.' },
-    ]
+      {
+        id: 'code_replace',
+        label: 'Smart Replace',
+        description: 'Modify specific code blocks safely.',
+        implemented: true,
+      },
+      {
+        id: 'code_rewrite',
+        label: 'Full Rewrite',
+        description: 'Re-generate entire files (Aggressive).',
+        implemented: true,
+      },
+      {
+        id: 'code_insert',
+        label: 'Content Insert',
+        description: 'Inject rows/columns without rewriting.',
+        implemented: true,
+      },
+      { id: 'diff_check', label: 'Diff Checker', description: 'Preview changes before applying.', implemented: true },
+      { id: 'undo_last', label: 'Undo Last', description: 'Revert the last change (per file).', implemented: true },
+    ],
   },
   {
-    category: "Data & Grounding",
+    category: 'Data & Grounding',
     items: [
-      { id: 'web_search', label: 'Web Search', description: 'Access Google Search for real-time info.' },
-      { id: 'read_file', label: 'Read File', description: 'Analyze current file context.' },
-      { id: 'read_all_files', label: 'Project Scan', description: 'Read all files in project.' },
-      { id: 'grep_search', label: 'Grep Search', description: 'Regex pattern matching.' },
-      { id: 'image_analysis', label: 'Vision Analysis', description: 'Understand uploaded form images.' },
-    ]
+      {
+        id: 'web_search',
+        label: 'Web Search',
+        description: 'Ground answers using Gemini Google Search.',
+        implemented: false,
+      },
+      { id: 'read_file', label: 'Read File', description: 'Return current file context.', implemented: true },
+      {
+        id: 'read_all_files',
+        label: 'Project Scan',
+        description: 'Return all in-app project files.',
+        implemented: true,
+      },
+      {
+        id: 'grep_search',
+        label: 'Grep Search',
+        description: 'Search patterns across project files.',
+        implemented: true,
+      },
+      {
+        id: 'image_analysis',
+        label: 'Vision Analysis',
+        description: 'Understand uploaded form images.',
+        implemented: true,
+      },
+    ],
   },
   {
-    category: "Code Quality",
+    category: 'Code Quality',
     items: [
-      { id: 'html_validation', label: 'Strict HTML Validator', description: 'Ensure valid table nesting.' },
-      { id: 'prettier_fmt', label: 'Auto Formatter', description: 'Run Prettier after generation.' },
-      { id: 'explain_code', label: 'Explain Mode', description: 'Add comments and reasoning to output.' },
-      { id: 'extract_colors', label: 'Color Extractor', description: 'Identify palette from images.' },
-      { id: 'diff_check', label: 'Diff Checker', description: 'Show changes before applying.' },
-    ]
+      {
+        id: 'print_safe_validator',
+        label: 'Print-Safe Validator',
+        description: 'Validate PrintForm.js + table rules.',
+        implemented: true,
+      },
+      {
+        id: 'html_validation',
+        label: 'Strict HTML Validator',
+        description: 'Ensure valid table nesting.',
+        implemented: false,
+      },
+      {
+        id: 'prettier_fmt',
+        label: 'Auto Formatter',
+        description: 'Run Prettier after generation.',
+        implemented: false,
+      },
+      {
+        id: 'explain_code',
+        label: 'Explain Mode',
+        description: 'Add comments and reasoning to output.',
+        implemented: true,
+      },
+      {
+        id: 'extract_colors',
+        label: 'Color Extractor',
+        description: 'Identify palette from images.',
+        implemented: false,
+      },
+    ],
   },
   {
-    category: "Utilities",
+    category: 'Utilities',
     items: [
-      { id: 'calculator', label: 'Math Engine', description: 'Verify invoice totals/taxes.' },
-      { id: 'currency_convert', label: 'Currency Converter', description: 'Convert rates via search.' },
-      { id: 'translator', label: 'Auto Translate', description: 'Translate labels to target language.' },
-      { id: 'lorem_ipsum', label: 'Lorem Generator', description: 'Fill tables with dummy data.' },
-      { id: 'generate_docs', label: 'Doc Generator', description: 'Create documentation for the form.' },
-      { id: 'unit_test', label: 'Test Generator', description: 'Create validation tests.' },
-    ]
-  }
+      { id: 'calculator', label: 'Math Engine', description: 'Verify invoice totals/taxes.', implemented: false },
+      {
+        id: 'currency_convert',
+        label: 'Currency Converter',
+        description: 'Convert rates via search.',
+        implemented: false,
+      },
+      {
+        id: 'translator',
+        label: 'Auto Translate',
+        description: 'Translate labels to target language.',
+        implemented: false,
+      },
+      { id: 'lorem_ipsum', label: 'Lorem Generator', description: 'Fill tables with dummy data.', implemented: false },
+      {
+        id: 'generate_docs',
+        label: 'Doc Generator',
+        description: 'Create documentation for the form.',
+        implemented: false,
+      },
+      { id: 'unit_test', label: 'Test Generator', description: 'Create validation tests.', implemented: false },
+    ],
+  },
 ];
 
 // Flattens the nested structure to get a simple array of all IDs
 // This makes maintenance cheap: add a tool above, and it's automatically "default on" everywhere.
-export const ALL_TOOL_IDS = AVAILABLE_TOOLS.flatMap(category => 
-  category.items.map(tool => tool.id)
+export const ALL_TOOL_IDS = AVAILABLE_TOOLS.flatMap((category) => category.items.map((tool) => tool.id));
+
+export const IMPLEMENTED_TOOL_IDS = AVAILABLE_TOOLS.flatMap((category) =>
+  category.items.filter((tool) => tool.implemented).map((tool) => tool.id),
 );
+
+export const GEMINI_MODELS = [
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Recommended)' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Fast)' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+];

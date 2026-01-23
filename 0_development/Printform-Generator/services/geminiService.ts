@@ -1,145 +1,29 @@
-
-import { GoogleGenAI, Chat, FunctionDeclaration, Type, Tool, Part } from "@google/genai";
+import { GoogleGenAI, Chat, FunctionDeclaration, Tool, Part } from '@google/genai';
 import { AgentTask } from '../types';
+import {
+  modifyCodeTool,
+  insertContentTool,
+  managePlanTool,
+  undoLastTool,
+  readFileTool,
+  readAllFilesTool,
+  grepSearchTool,
+  diffCheckTool,
+  printSafeValidatorTool,
+} from './gemini/toolDefinitions';
+import {
+  BASE_SYSTEM_INSTRUCTION,
+  VISION_INSTRUCTION,
+  TOOL_FALLBACK_INSTRUCTION,
+  EXPLAIN_CODE_INSTRUCTION,
+  getConfigurationInstruction,
+} from './gemini/systemInstructions';
+import { ToolMode } from './gemini/types';
 
-// Define the "IDE" tools
-const modifyCodeTool: FunctionDeclaration = {
-  name: 'modify_code',
-  description: 'Modify the code. Use "replace" for small edits (search & replace) and "rewrite" ONLY for full file restructuring.',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      operation: {
-        type: Type.STRING,
-        enum: ['replace', 'rewrite'],
-        description: 'Use "replace" to find and replace a snippet. Use "rewrite" ONLY if you need to change >50% of the file.',
-      },
-      search_snippet: {
-        type: Type.STRING,
-        description: 'Exact string to find in the existing code. REQUIRED if operation is "replace". Must match character-for-character.',
-      },
-      new_code: {
-        type: Type.STRING,
-        description: 'The new code to insert. If operation is "rewrite", this is the full file content.',
-      },
-      change_description: {
-        type: Type.STRING,
-        description: 'A short summary of what changed (e.g., "Added tax column"). Used for the Audit Log.',
-      },
-    },
-    required: ['operation', 'new_code', 'change_description'],
-  },
-};
-
-const insertContentTool: FunctionDeclaration = {
-  name: 'insert_content',
-  description: 'Insert new code/tags before or after a specific snippet. Best for adding new columns, rows, or styles without rewriting.',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      target_snippet: {
-        type: Type.STRING,
-        description: 'The existing code snippet to use as an anchor/reference point.',
-      },
-      position: {
-        type: Type.STRING,
-        enum: ['before', 'after'],
-        description: 'Where to insert the new code relative to the target_snippet.',
-      },
-      new_code: {
-        type: Type.STRING,
-        description: 'The new HTML/CSS code to insert.',
-      },
-      change_description: {
-        type: Type.STRING,
-        description: 'A short summary of what changed (e.g., "Added footer row"). Used for the Audit Log.',
-      },
-    },
-    required: ['target_snippet', 'position', 'new_code', 'change_description'],
-  },
-};
-
-const managePlanTool: FunctionDeclaration = {
-  name: 'manage_plan',
-  description: 'Manage the Task List. Use this to break down complex user requests into steps, or update the status of tasks as you complete them.',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      action: {
-        type: Type.STRING,
-        enum: ['create_plan', 'mark_completed', 'mark_in_progress', 'mark_failed', 'add_task'],
-        description: 'create_plan: Overwrites list. mark_in_progress: Set status to running. mark_completed: Set status to done. mark_failed: Set status to failed.',
-      },
-      tasks: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING },
-        description: 'List of task descriptions. Required for "create_plan" or "add_task".',
-      },
-      task_index: {
-        type: Type.INTEGER,
-        description: 'Index of the task to update (0-based). Required for status updates.',
-      },
-      failure_reason: {
-        type: Type.STRING,
-        description: 'If marking as failed, provide a short reason.',
-      }
-    },
-    required: ['action'],
-  }
-};
-
-const BASE_SYSTEM_INSTRUCTION = `
-You are an expert ERP Print Form Developer acting as an AI Copilot.
-Your goal is to edit HTML/CSS for business print forms (Invoices, Packing Slips).
-
-### STYLING RULES (INLINE STYLES PREFERRED)
-1. **NO <STYLE> BLOCKS**: You MUST use **INLINE STYLES** (style="...") for all elements.
-   - Do not create CSS classes in a <head> or <style> tag unless absolutely necessary (e.g. for @media print).
-   - This ensures compatibility with email clients and legacy ERP rendering engines.
-2. **PAGE DIMENSIONS**: 
-   - The form is designed for a specific page size provided in the configuration (Default: 750px width).
-   - Ensure the main container matches the configured width.
-
-### CRITICAL LAYOUT RULES (STRICT ERP COMPATIBILITY)
-1. **TABLE STRUCTURE**: You MUST use the following specific structure for ALL tables.
-   \`<table cellpadding="0" cellspacing="0" border="0" style="width:100%; table-layout:fixed;">\`
-   
-   - **cellpadding="0" cellspacing="0" border="0"**: Required legacy attributes.
-   - **style="width:100%; table-layout:fixed;"**: REQUIRED.
-
-2. **COLGROUP IS MANDATORY**:
-   - **NEVER** set \`width\` on \`<td>\` tags. 
-   - You **MUST** use \`<colgroup>\` to define column widths.
-   - This ensures strict alignment across rows, which is critical for ERP forms.
-
-3. **CELL STRUCTURE**:
-   - Every \`<td>\` MUST include \`box-sizing: border-box;\` in its style. 
-
-4. **NO DIVS FOR LAYOUT**: **DO NOT** use \`<div>\` tags for structure (columns/rows). The ONLY allowed \`<div>\` is the main wrapper \`<div class="printform" style="...">...</div>\`.
-
-### WORKFLOW: TASK PLANNING & EXECUTION
-1. **Check the Plan**: Always look at the [CURRENT PLAN] provided in the context.
-2. **Execute Next**: If there are tasks in 'pending' status, execute the first one immediately.
-3. **Update Status**: Use \`manage_plan\` to mark tasks as 'in_progress' or 'completed' as you go.
-4. **Iterate**: Do not stop until all tasks in the plan are 'completed'.
-
-### ERROR HANDLING & RETRY PROTOCOL
-- If a tool returns an error (e.g., "Could not find exact snippet"):
-  1. **DO NOT GIVE UP**.
-  2. Analyze the error message.
-  3. **RETRY** immediately with corrected arguments (e.g., adjust the search snippet, handle whitespace, or switch to \`rewrite\` if necessary).
-  4. If you fail 3 times on the same task, use \`manage_plan\` to \`mark_failed\` with the reason.
-`;
-
-const VISION_INSTRUCTION = `
-### IMAGE REPLICATION PROTOCOL (VISION MODE)
-If the user attaches an image, you must act as a **Pixel-Perfect HTML Converter**.
-1. **Analyze Grid**: Mentally map the image to a grid.
-2. **Define Colgroup**: Calculate strict percentages for \`<col>\` tags based on the image.
-3. **Replicate Structure**: Use the **STRICT TABLE STRUCTURE** defined above.
-4. **Match Styling**: Match fonts (Serif/Sans), borders, and padding exactly using **INLINE STYLES**.
-`;
-
+/**
+ * Gemini AI 服务类
+ * 负责与 Google Gemini API 的交互和会话管理
+ */
 export class GeminiService {
   private chat: Chat | null = null;
   private apiKey: string;
@@ -147,64 +31,79 @@ export class GeminiService {
   private activeTools: string[];
   private pageWidth: string;
   private pageHeight: string;
+  // Use JSON-directive tool mode by default to avoid function-call turn ordering issues.
+  // The model is instructed to output <TOOL_CALL>{...}</TOOL_CALL> blocks that we parse and execute locally.
+  private toolMode: ToolMode = 'json_directive';
 
   constructor(
-      apiKey: string, 
-      modelName: string = 'gemini-3-pro-preview', 
-      activeTools: string[] = [],
-      pageWidth: string = '750px',
-      pageHeight: string = '1050px'
+    apiKey: string,
+    modelName: string = 'gemini-3-pro-preview',
+    activeTools: string[] = [],
+    pageWidth: string = '750px',
+    pageHeight: string = '1050px',
   ) {
     this.apiKey = apiKey;
     this.modelName = modelName;
     this.activeTools = activeTools;
     this.pageWidth = pageWidth;
     this.pageHeight = pageHeight;
-    
+
     if (this.apiKey) {
-        this.initializeChat();
+      this.initializeChat();
     }
   }
 
+  /**
+   * 初始化聊天会话
+   * 根据配置动态构建工具和系统指令
+   */
   private initializeChat() {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
-    
-    // Dynamic Tool Construction
-    const functionDeclarations: FunctionDeclaration[] = [managePlanTool]; // Plan tool is always active
+
+    // 动态工具构建
+    const functionDeclarations: FunctionDeclaration[] = [managePlanTool]; // Plan tool 始终启用
     const toolConfig: Tool[] = [];
-    
+
     let systemInstruction = BASE_SYSTEM_INSTRUCTION;
-    
-    // Inject Dimensions into System Instruction
-    systemInstruction += `\n\n### CONFIGURATION\n- Target Page Width: ${this.pageWidth}\n- Target Page Height: ${this.pageHeight}\n- Ensure the root container <div class="printform"> has style="width:${this.pageWidth}; min-height:${this.pageHeight};"`;
 
-    // 1. Core Editing Tools
+    // 注入页面尺寸配置
+    systemInstruction += getConfigurationInstruction(this.pageWidth, this.pageHeight);
+
+    // 1. 核心编辑工具
     if (this.activeTools.includes('code_replace') || this.activeTools.includes('code_rewrite')) {
-        functionDeclarations.push(modifyCodeTool);
+      functionDeclarations.push(modifyCodeTool);
     }
-    
+
     if (this.activeTools.includes('code_insert')) {
-        functionDeclarations.push(insertContentTool);
+      functionDeclarations.push(insertContentTool);
     }
 
-    // Add function declarations to tool config if any exist
+    // 2. Local grounding & safety tools (frontend-only)
+    if (this.activeTools.includes('read_file')) functionDeclarations.push(readFileTool);
+    if (this.activeTools.includes('read_all_files')) functionDeclarations.push(readAllFilesTool);
+    if (this.activeTools.includes('grep_search')) functionDeclarations.push(grepSearchTool);
+    if (this.activeTools.includes('diff_check')) functionDeclarations.push(diffCheckTool);
+    if (this.activeTools.includes('undo_last')) functionDeclarations.push(undoLastTool);
+    if (this.activeTools.includes('print_safe_validator')) functionDeclarations.push(printSafeValidatorTool);
+
+    // Always push function declarations if they exist
     if (functionDeclarations.length > 0) {
-        toolConfig.push({ functionDeclarations });
+      toolConfig.push({ functionDeclarations });
     }
 
-    // 2. Web Search Tool
-    if (this.activeTools.includes('web_search')) {
-        toolConfig.push({ googleSearch: {} });
+    if (this.toolMode === 'json_directive') {
+      // 工具回退模式 - 额外加强提示词
+      systemInstruction += TOOL_FALLBACK_INSTRUCTION;
     }
 
-    // 3. Vision / Image Analysis Capability
+    // 视觉分析能力
     if (this.activeTools.includes('image_analysis')) {
-        systemInstruction += `\n\n${VISION_INSTRUCTION}`;
+      systemInstruction += `\n\n${VISION_INSTRUCTION}`;
     }
 
-    // 4. System Instruction Modifiers (Persona Tweaks)
+    // 代码解释模式
     if (this.activeTools.includes('explain_code')) {
-        systemInstruction += `\n\n### EXPLANATION MODE\n- You are in Verbose Mode. After every code change, explain clearly WHY you made the change and how it affects the print layout.`;
+      systemInstruction += EXPLAIN_CODE_INSTRUCTION;
     }
 
     this.chat = ai.chats.create({
@@ -212,98 +111,155 @@ export class GeminiService {
       config: {
         systemInstruction: systemInstruction,
         tools: toolConfig,
-        temperature: 0.2, // Low temp for code precision
+        temperature: 0.2, // 低温度以提高代码精确度
       },
     });
   }
 
-  async sendMessageStream(message: string | Part[], currentFileContext: string, image?: { mimeType: string; data: string }, currentTasks: AgentTask[] = []): Promise<any> {
+  /**
+   * 发送消息流
+   * @param message 用户消息或函数响应
+   * @param currentFileContext 当前文件上下文
+   * @param image 可选的图片数据
+   * @param currentTasks 当前任务列表
+   */
+  async sendMessageStream(
+    message: string | Part[],
+    currentFileContext: string,
+    images?: Array<{ mimeType: string; data: string }>,
+    currentTasks: AgentTask[] = [],
+  ): Promise<any> {
     if (!this.chat) {
-        if (!this.apiKey) {
-            throw new Error("API Key is missing. Please set it in Settings.");
-        }
-        this.initializeChat();
+      if (!this.apiKey) {
+        throw new Error('API Key is missing. Please set it in Settings.');
+      }
+      this.initializeChat();
     }
 
     try {
       let messageParts: any[] = [];
 
-      // Construct a text representation of the plan
-      let planContext = "";
+      // 构建任务计划上下文
+      let planContext = '';
       if (currentTasks.length > 0) {
-          planContext = "\n[CURRENT PLAN STATUS]:\n";
-          currentTasks.forEach((t, i) => {
-              planContext += `${i}. [${t.status.toUpperCase()}] ${t.description}\n`;
-          });
-          planContext += "\nInstruction: If there are PENDING tasks, proceed to the next one immediately.\n";
+        planContext = '\n[CURRENT PLAN STATUS]:\n';
+        currentTasks.forEach((t, i) => {
+          planContext += `${i}. [${t.status.toUpperCase()}] ${t.description}\n`;
+        });
+        const inProgressIdx = currentTasks.findIndex((t) => t.status === 'in_progress');
+        if (inProgressIdx >= 0) {
+          planContext += `\n[CURRENT TASK]: #${inProgressIdx + 1} ${currentTasks[inProgressIdx].description}\n`;
+        }
+        planContext += '\nInstruction: If there are PENDING tasks, proceed to the next one immediately.\n';
       }
 
-      // Check if message is a simple string (New User Request) or a Part array (Function Response)
+      // 检查消息类型:新用户请求 或 函数响应
       if (typeof message === 'string') {
-        // --- USER REQUEST ---
-        // Prepend context hidden from the main chat flow logic
+        // --- 用户请求 ---
         const promptWithContext = `
 [CURRENT FILE CONTEXT START]
 ${currentFileContext}
 [CURRENT FILE CONTEXT END]
 ${planContext}
 
+Preflight protocol (MANDATORY):
+1) Review the latest preview snapshot image (if provided).
+2) Review the CURRENT FILE CONTEXT.
+3) Identify the CURRENT TASK from the plan (if any).
+4) Only then decide the next minimal change.
+
 User Request: ${message}
 `;
-        
-        // If image exists, prioritize visual replication instructions
-        if (image) {
-            let visualPrompt = promptWithContext;
-            // If the user sent an image with no text, we assume they want replication.
-            if (!message.trim()) {
-              visualPrompt = `
-[CURRENT FILE CONTEXT START]
-${currentFileContext}
-[CURRENT FILE CONTEXT END]
 
-User Request: Analyze this image and reproduce this exact form layout using STRICT HTML Tables with <colgroup> logic. Use INLINE STYLES.
-              `;
-            } else {
-               visualPrompt = `
-[CURRENT FILE CONTEXT START]
-${currentFileContext}
-[CURRENT FILE CONTEXT END]
-
-User Request: ${message}
-(Note: Use the attached image as the primary visual reference for this request).
-               `;
-            }
-  
+        const hasImages = Array.isArray(images) && images.length > 0;
+        if (hasImages) {
+          images.forEach((img) => {
             messageParts.push({
               inlineData: {
-                  mimeType: image.mimeType,
-                  data: image.data
-              }
+                mimeType: img.mimeType,
+                data: img.data,
+              },
             });
-            messageParts.push({ text: visualPrompt });
+          });
+
+          const imageNote = `
+[IMAGE CONTEXT]
+- Image 1: Reference image (target layout/style).
+- Image 2 (if present): Current preview snapshot (after latest change). Use it to verify progress and avoid regressions.
+`;
+
+          // 如果用户只发送图片没有文字,假设需要复制
+          const visualPrompt = !message.trim()
+            ? `
+[CURRENT FILE CONTEXT START]
+${currentFileContext}
+[CURRENT FILE CONTEXT END]
+
+User Request: Analyze the attached images and reproduce the reference design using STRICT HTML Tables with <colgroup> logic. Use INLINE STYLES.
+${imageNote}
+              `
+            : `${promptWithContext}\n${imageNote}\n(Note: Use the attached images as the primary visual reference for this request).`;
+
+          messageParts.push({ text: visualPrompt });
         } else {
-            messageParts.push({ text: promptWithContext });
+          messageParts.push({ text: promptWithContext });
         }
       } else {
-        // --- FUNCTION RESPONSE (INTERNAL LOOP) ---
-        // Pass the parts directly. 
-        // CRITICAL: We DO inject plan context here if possible, but sendMessageStream usually takes Part[] for function replies.
-        // Google GenAI usually expects just the function response part. 
-        // However, we can append a text part to reinforce the plan status if needed, 
-        // but strictly adhering to the API, we usually send the ToolResponse.
-        // To nudge the model, we can rely on the system instruction or the fact the model "remembers" the plan from previous turns?
-        // Actually, it's better to NOT modify the ToolResponse structure, but we rely on the recursion loop in useAgentChat to start a NEW turn if needed,
-        // or we trust the model.
-        // HOWEVER, for robustness, if we are sending a tool response, the model will generate the NEXT message.
-        // If we want to remind it of the plan, we might need to send a user message *after* the tool response, 
-        // but here we are providing the *response to the tool call*.
-        messageParts = message; 
+        // --- 函数响应(内部循环) ---
+        // 在回退模式下,将结构化的 functionResponse 转换为纯文本
+        if (this.toolMode === 'json_directive') {
+          const first = (message as any[])[0];
+          const fr = first?.functionResponse;
+          const name = fr?.name || 'tool';
+          const result = fr?.response?.result ?? '';
+          const success = fr?.response?.success ?? false;
+          const toolResultText = `
+[CURRENT FILE CONTEXT START]
+${currentFileContext}
+[CURRENT FILE CONTEXT END]
+${planContext}
+
+ToolResult (${name}): success=${success}
+${result}
+
+Instruction: If there are PENDING tasks, proceed to the next one immediately.
+	If you need to act, output ONE <TOOL_CALL>{...}</TOOL_CALL> at the end.
+`;
+          const hasImages = Array.isArray(images) && images.length > 0;
+          if (hasImages) {
+            images.forEach((img) => {
+              messageParts.push({
+                inlineData: {
+                  mimeType: img.mimeType,
+                  data: img.data,
+                },
+              });
+            });
+          }
+          messageParts.push({ text: toolResultText });
+        } else {
+          messageParts = message;
+        }
       }
 
-      // We use the non-null assertion because we check initialization above
+      // 发送消息流
       return await this.chat!.sendMessageStream({ message: messageParts });
     } catch (error) {
-      console.error("Gemini API Error:", error);
+      const errText = (error as any)?.message || '';
+      const isToolUnsupported =
+        (error as any)?.code === 400 &&
+        typeof errText === 'string' &&
+        errText.includes('Tool use with function calling is unsupported');
+
+      if (isToolUnsupported && this.toolMode === 'function_calling') {
+        // 自动回退:重新初始化为 JSON 指令模式并重试
+        this.toolMode = 'json_directive';
+        this.chat = null;
+        this.initializeChat();
+        return await this.sendMessageStream(message, currentFileContext, images, currentTasks);
+      }
+
+      console.error('Gemini API Error:', error);
       throw error;
     }
   }

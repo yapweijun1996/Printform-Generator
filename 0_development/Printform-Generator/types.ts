@@ -1,7 +1,6 @@
-
 export enum Sender {
   User = 'user',
-  Bot = 'bot'
+  Bot = 'bot',
 }
 
 export interface Message {
@@ -19,6 +18,21 @@ export interface Message {
     name: string;
     args: any;
     status: 'pending' | 'success' | 'error';
+  };
+  action?: {
+    type: 'continue_execution';
+    label: string;
+    onAction: () => void;
+  };
+  actions?: Array<{
+    label: string;
+    variant?: 'primary' | 'secondary' | 'danger';
+    onAction: () => void;
+  }>;
+  collapsible?: {
+    title: string;
+    content: string;
+    defaultOpen?: boolean;
   };
 }
 
@@ -43,6 +57,16 @@ export interface AgentTask {
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'retrying';
 }
 
+export interface AuditLogEntry {
+  id: string;
+  timestamp: number;
+  action: string; // e.g., "modify_code", "manage_plan", "insert_content"
+  description: string; // Human-readable description
+  status: 'success' | 'error';
+  details?: string; // Optional detailed output
+  args?: any; // Tool arguments for debugging
+}
+
 export interface ChatSessionState {
   messages: Message[];
   isLoading: boolean;
@@ -54,7 +78,8 @@ export interface UserSettings {
   activeTools: string[];
   pageWidth: string;
   pageHeight: string;
+  minRowItemsForPaginationTest: number;
 }
 
 export type ViewMode = 'preview' | 'code' | 'split';
-export type SidebarTab = 'chat' | 'files' | 'plan' | 'history';
+export type SidebarTab = 'chat' | 'files' | 'plan' | 'history' | 'audit';

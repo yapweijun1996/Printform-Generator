@@ -1,4 +1,3 @@
-
 # FormGenie - ERP Print Form Builder
 
 A professional AI-powered tool for designing ERP print forms (Invoices, Packing Slips, Reports) using natural language.
@@ -17,17 +16,35 @@ A professional AI-powered tool for designing ERP print forms (Invoices, Packing 
 - **Frontend**: React 19, Tailwind CSS
 - **Editor**: Monaco Editor (via `@monaco-editor/react`)
 - **AI Integration**: Google GenAI SDK (`@google/genai`)
-- **Build**: No build step required for dev (ES Modules via `esm.sh`)
+- **Pagination/Printing**: PrintForm.js (`printform-js/printform.js`)
+- **Build**: Vite
 
 ## Setup & Usage
 
 1. **API Key**: You must provide a valid Google Gemini API Key.
-   - The app expects `process.env.API_KEY` to be injected by your environment.
-   - Ensure your API Key has access to the `gemini-3-pro-preview` model.
+   - Put it in `.env.local` as `VITE_GEMINI_API_KEY=...` (recommended), or set `VITE_GEMINI_API_KEY` in your environment.
 
-2. **Running**:
-   - Serve the directory using any static server or standard React bundler.
-   - The entry point is `index.html`.
+2. **Install & Run**:
+   - `npm install`
+   - `npm run dev`
+
+3. **Build**:
+   - `npm run build`
+   - Output folder: `dist/`
+   - **PrintForm.js output location**: `dist/printform.js` (root of `dist/`)
+
+## How printing works (high-level)
+
+```mermaid
+flowchart TD
+  A[Generate HTML (.printform)] --> B[Preview iframe loads dist/printform.js]
+  B --> C[PrintForm.formatAll pagination]
+  C --> D[Multi-page output with repeated header/row header/footer]
+```
+
+## SOP (PrintForm.js)
+
+See `docs/PRINTFORM_JS_SOP.md`.
 
 ## Models
 

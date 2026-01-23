@@ -1,4 +1,3 @@
-
 export const INITIAL_HTML = `
 <div class="printform" style="box-sizing: border-box; padding: 20px; width: 750px; margin: 0 auto; background: white; font-family: 'Inter', sans-serif; color: #1e293b;">
   
@@ -81,7 +80,8 @@ export const INITIAL_HTML = `
   </table>
 
   <!-- 3. LINE ITEMS -->
-  <table cellpadding="0" cellspacing="0" style="width:100%; table-layout:fixed; border-bottom:2px solid #e2e8f0;" border="0">
+  <!-- Row Item Header (separate table) -->
+  <table class="rowitem-header" cellpadding="0" cellspacing="0" style="width:100%; table-layout:fixed; border-bottom:2px solid #e2e8f0;" border="0">
     <colgroup>
         <col style="width: 45%">
         <col style="width: 15%">
@@ -94,25 +94,43 @@ export const INITIAL_HTML = `
       <td style="box-sizing:border-box; padding:10px 5px; text-align:right;">Unit Price</td>
       <td style="box-sizing:border-box; padding:10px 5px; text-align:right;">Total</td>
     </tr>
-    <!-- Item 1 -->
+  </table>
+
+  <!-- Row Item 1 (one item per table) -->
+  <table class="rowitem" cellpadding="0" cellspacing="0" style="width:100%; table-layout:fixed; border-bottom:1px solid #f1f5f9;" border="0">
+    <colgroup>
+        <col style="width: 45%">
+        <col style="width: 15%">
+        <col style="width: 20%">
+        <col style="width: 20%">
+    </colgroup>
     <tr>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; vertical-align:top;">
+      <td style="box-sizing:border-box; padding:12px 5px; vertical-align:top;">
         <div style="font-weight:600; font-size:12px;">Premium Software License</div>
         <div style="font-size:10px; color:#64748b;">Annual subscription (User Tier 1)</div>
       </td>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; text-align:center; vertical-align:top; font-size:12px;">5</td>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; text-align:right; vertical-align:top; font-size:12px;">$120.00</td>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; text-align:right; vertical-align:top; font-size:12px;">$600.00</td>
+      <td style="box-sizing:border-box; padding:12px 5px; text-align:center; vertical-align:top; font-size:12px;">5</td>
+      <td style="box-sizing:border-box; padding:12px 5px; text-align:right; vertical-align:top; font-size:12px;">$120.00</td>
+      <td style="box-sizing:border-box; padding:12px 5px; text-align:right; vertical-align:top; font-size:12px;">$600.00</td>
     </tr>
-    <!-- Item 2 -->
+  </table>
+
+  <!-- Row Item 2 (one item per table) -->
+  <table class="rowitem" cellpadding="0" cellspacing="0" style="width:100%; table-layout:fixed; border-bottom:1px solid #f1f5f9;" border="0">
+    <colgroup>
+        <col style="width: 45%">
+        <col style="width: 15%">
+        <col style="width: 20%">
+        <col style="width: 20%">
+    </colgroup>
     <tr>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; vertical-align:top;">
+      <td style="box-sizing:border-box; padding:12px 5px; vertical-align:top;">
         <div style="font-weight:600; font-size:12px;">Implementation Support</div>
         <div style="font-size:10px; color:#64748b;">On-site technical assistance (Hours)</div>
       </td>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; text-align:center; vertical-align:top; font-size:12px;">10</td>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; text-align:right; vertical-align:top; font-size:12px;">$85.00</td>
-      <td style="box-sizing:border-box; padding:12px 5px; border-bottom:1px solid #f1f5f9; text-align:right; vertical-align:top; font-size:12px;">$850.00</td>
+      <td style="box-sizing:border-box; padding:12px 5px; text-align:center; vertical-align:top; font-size:12px;">10</td>
+      <td style="box-sizing:border-box; padding:12px 5px; text-align:right; vertical-align:top; font-size:12px;">$85.00</td>
+      <td style="box-sizing:border-box; padding:12px 5px; text-align:right; vertical-align:top; font-size:12px;">$850.00</td>
     </tr>
   </table>
 
