@@ -186,6 +186,7 @@ ${currentFileContext}
 ${planContext}
 
 Preflight protocol (MANDATORY):
+0) Review [AUTO_GROUNDING] (if present) for template/validator hints.
 1) Review the latest preview snapshot image (if provided).
    - If both a reference image and a current preview image are provided, compare them and report [VISUAL DIFF] before deciding changes.
 2) Review the CURRENT FILE CONTEXT.

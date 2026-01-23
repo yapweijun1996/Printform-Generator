@@ -3,6 +3,7 @@ import type { ConversationHandlerDependencies } from './conversationTypes';
 import { executeToolCall } from './toolExecutor';
 import { maybeHandleDiffConfirmation } from './diffConfirmation';
 import { validatePrintSafe } from '../../utils/printSafeValidator';
+import { debugLog } from '../../utils/debug';
 
 export const handleToolCallFlow = async (
   functionCallData: any,
@@ -32,6 +33,13 @@ export const handleToolCallFlow = async (
   const runToolAndContinue = async () => {
     setBotStatus(friendlyActionName);
     await new Promise((r) => setTimeout(r, 400));
+
+    debugLog('toolCall.start', {
+      recursionDepth,
+      name: functionCallData?.name,
+      id: functionCallData?.id,
+      args: functionCallData?.args,
+    });
 
     if (functionCallData.name === 'visual_review') {
       const beforeVersion = deps.getPreviewSnapshotVersion();
@@ -79,6 +87,11 @@ export const handleToolCallFlow = async (
       });
 
       setBotStatus(undefined);
+      debugLog('toolCall.visual_review.done', {
+        ok: result.success,
+        beforeVersion,
+        currentVersion: deps.getPreviewSnapshotVersion(),
+      });
 
       const isTextToolCall = String(functionCallData.id || '').startsWith('text-tool-');
       if (isTextToolCall) {
@@ -107,6 +120,12 @@ export const handleToolCallFlow = async (
       revertToLatestHistory,
       tasksRef,
       setTasks,
+    });
+
+    debugLog('toolCall.result', {
+      name: functionCallData?.name,
+      success: result?.success,
+      outputTail: String(result?.output || '').slice(-200),
     });
 
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
@@ -142,6 +161,13 @@ export const handleToolCallFlow = async (
     }
 
     if (hasBlockingValidationErrors && postEditBlockMessage) {
+      debugLog('toolCall.postEditValidation.blocked', {
+        name: functionCallData?.name,
+        errors: postEditBlockMessage
+          .split('\n')
+          .filter((l) => l.includes('[ERROR]'))
+          .slice(0, 10),
+      });
       const retryId = `print-safe-retry-${Date.now()}`;
       setBotStatus(undefined);
       setMessages((prev) => [
@@ -208,6 +234,10 @@ export const handleToolCallFlow = async (
         });
         setTasks(updated);
         tasksRef.current = updated;
+        debugLog('plan.autoAdvance', {
+          completedIndex: inProgressIdx,
+          nextInProgressIndex: nextPendingIdx,
+        });
       }
     }
 

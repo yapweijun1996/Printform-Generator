@@ -8,6 +8,10 @@ export interface ConversationHandlerDependencies {
   getAllFiles: () => ProjectFile[];
   updateFileContent: (content: string, description: string) => void;
   revertToLatestHistory: () => boolean;
+  activeTools: string[];
+  pageWidth: string;
+  pageHeight: string;
+  minRowItemsForPaginationTest: number;
   diffCheckEnabled: boolean;
   autoApplyDiff: boolean;
   strictPreviewGate: boolean;

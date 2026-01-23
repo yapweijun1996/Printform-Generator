@@ -65,23 +65,163 @@ Therefore:
 - The root wrapper MUST be: <div class="printform" style="width:${'${pageWidth}'}; min-height:${'${pageHeight}'}; margin:0 auto; box-sizing:border-box; padding:0; background:white; ...">
 - Do NOT emulate margins by adding padding on the root wrapper. Margins come from a 3-col "page frame" table.
 
-### SOP: SECTION-AS-PAGE-FRAME TABLE (MANDATORY)
-All PrintForm.js sections MUST be implemented as a **3-column page frame table** (NOT an extra wrapper table).
-This applies to:
-- .pheader
-- .pdocinfo / .pdocinfo002 / ...
-- .prowheader
-- each .prowitem (one per item row block; deterministic height)
-- .pfooter_pagenum
+### SOP: SECTION-AS-PAGE-FRAME TABLE (MANDATORY - CRITICAL)
+**CRITICAL RULE**: Each PrintForm.js section (.pheader, .pdocinfo, .prowheader, .prowitem, .pfooter_pagenum) 
+MUST BE a standalone 3-column page-frame table. The section class goes on the outer table itself.
 
-For each section:
-- The SECTION element itself MUST be a <table> with the section class on it (e.g. <table class="pheader" ...>).
-- The SECTION table MUST include a <colgroup> with EXACTLY 3 columns:
-  1) left col: 15px
-  2) middle col: auto (content)
-  3) right col: 15px
-- Content MUST be rendered inside the middle <td>.
-- Do NOT wrap sections in additional "page frame" tables.
+**DO NOT create a separate wrapper "page frame" table around sections.**
+
+---
+
+**WRONG PATTERN** ❌ (DO NOT DO THIS):
+\`\`\`html
+<!-- ❌ WRONG: Outer wrapper table with sections inside -->
+<table style="width:100%; table-layout:fixed;">
+  <colgroup>
+    <col style="width:15px">
+    <col style="width:auto">
+    <col style="width:15px">
+  </colgroup>
+  <tr>
+    <td></td>
+    <td>
+      <!-- ❌ WRONG: pheader does NOT have 15px/auto/15px -->
+      <table class="pheader" style="width:100%; table-layout:fixed;">
+        <colgroup>
+          <col style="width:50%">
+          <col style="width:50%">
+        </colgroup>
+        <tr>
+          <td>Company Info</td>
+          <td>Document Info</td>
+        </tr>
+      </table>
+    </td>
+    <td></td>
+  </tr>
+</table>
+\`\`\`
+
+---
+
+**CORRECT PATTERN** ✅ (ALWAYS DO THIS):
+\`\`\`html
+<!-- ✅ CORRECT: pheader IS the page-frame table -->
+<table class="pheader" cellpadding="0" cellspacing="0" border="0" 
+      style="width:100%; table-layout:fixed;">
+  <colgroup>
+    <col style="width:15px">   <!-- left margin -->
+    <col style="width:auto">    <!-- content area -->
+    <col style="width:15px">    <!-- right margin -->
+  </colgroup>
+  <tr>
+    <td style="box-sizing:border-box;"></td>
+    <td style="box-sizing:border-box; vertical-align:top;">
+      <!-- Put your actual content table HERE -->
+      <table cellpadding="0" cellspacing="0" border="0" 
+            style="width:100%; table-layout:fixed;">
+        <colgroup>
+          <col style="width:50%">
+          <col style="width:50%">
+        </colgroup>
+        <tr>
+          <td style="padding:5px;">Company Info</td>
+          <td style="padding:5px;">Document Info</td>
+        </tr>
+      </table>
+    </td>
+    <td style="box-sizing:border-box;"></td>
+  </tr>
+</table>
+
+<!-- ✅ CORRECT: pdocinfo IS the page-frame table -->
+<table class="pdocinfo" cellpadding="0" cellspacing="0" border="0" 
+      style="width:100%; table-layout:fixed;">
+  <colgroup>
+    <col style="width:15px">
+    <col style="width:auto">
+    <col style="width:15px">
+  </colgroup>
+  <tr>
+    <td></td>
+    <td>
+      <table cellpadding="0" cellspacing="0" border="0" 
+            style="width:100%; table-layout:fixed;">
+        <colgroup>
+          <col style="width:48%">
+          <col style="width:4%">
+          <col style="width:48%">
+        </colgroup>
+        <tr>
+          <td>Shipping Address</td>
+          <td></td>
+          <td>Invoice Address</td>
+        </tr>
+      </table>
+    </td>
+    <td></td>
+  </tr>
+</table>
+
+<!-- ✅ CORRECT: prowheader IS the page-frame table -->
+<table class="prowheader" cellpadding="0" cellspacing="0" border="0" 
+      style="width:100%; table-layout:fixed;">
+  <colgroup>
+    <col style="width:15px">
+    <col style="width:auto">
+    <col style="width:15px">
+  </colgroup>
+  <tr>
+    <td></td>
+    <td>
+      <table cellpadding="0" cellspacing="0" border="0" 
+            style="width:100%; table-layout:fixed;">
+        <colgroup>
+          <col style="width:15%">
+          <col style="width:55%">
+          <col style="width:10%">
+          <col style="width:10%">
+          <col style="width:10%">
+        </colgroup>
+        <tr style="background:#003366; color:white;">
+          <td style="padding:5px;">Item #</td>
+          <td style="padding:5px;">Description</td>
+          <td style="padding:5px;">Qty</td>
+          <td style="padding:5px;">Price</td>
+          <td style="padding:5px;">Total</td>
+        </tr>
+      </table>
+    </td>
+    <td></td>
+  </tr>
+</table>
+
+<!-- ✅ CORRECT: pfooter_pagenum MUST be a table, NOT a div -->
+<table class="pfooter_pagenum" cellpadding="0" cellspacing="0" border="0" 
+      style="width:100%; table-layout:fixed;">
+  <colgroup>
+    <col style="width:15px">
+    <col style="width:auto">
+    <col style="width:15px">
+  </colgroup>
+  <tr>
+    <td></td>
+    <td style="text-align:center; padding:10px 0; font-size:8pt;">
+      Page <span data-page-number></span> of <span data-page-total></span>
+    </td>
+    <td></td>
+  </tr>
+</table>
+\`\`\`
+
+---
+
+**KEY RULES** (MEMORIZE):
+1. The section class (.pheader, .pdocinfo, .prowheader, .prowitem, .pfooter_pagenum) MUST be on the OUTER table.
+2. The OUTER table MUST have <colgroup> with EXACTLY: 15px / auto / 15px.
+3. The actual content layout table goes INSIDE the middle <td>.
+4. NEVER create a separate wrapper "page frame" table around sections.
+5. pfooter_pagenum MUST be a <table>, NEVER a <div>.
 
 ### WORK DISCIPLINE (FULL AUTO)
 - Before making ANY change, inspect the CURRENT FILE CONTEXT and the CURRENT PLAN STATUS.
@@ -232,8 +372,5 @@ export const getConfigurationInstruction = (pageWidth: string, pageHeight: strin
 - For PrintForm.js data attributes, also set:
   - data-papersize-width="${papersizeWidthPx}"
   - data-papersize-height="${papersizeHeightPx}"
-- Enforce left/right safe margins via OUTER 3-col "page frame" tables:
-  - <table cellpadding="0" cellspacing="0" border="0" style="width:${pageWidth}; table-layout:fixed;">
-  - <colgroup><col style="width:15px"><col style="width:auto"><col style="width:15px"></colgroup>
-  - Put all content tables inside the middle <td>.`;
+- IMPORTANT: Do NOT create an outer wrapper "page frame" table. Each section (.pheader, .pdocinfo, .prowheader, .prowitem, .pfooter_pagenum) MUST be its own 3-col page-frame table (15px/auto/15px) as specified in the SOP above.`;
 };

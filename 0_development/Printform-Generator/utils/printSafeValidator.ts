@@ -134,7 +134,9 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
     }
   }
 
+
   // SOP: section-as-page-frame table (15px / auto / 15px). Best-effort regex validation.
+  // CRITICAL: Every section MUST be a page-frame table, not just when requirePrintformjs is true.
   for (const cls of SECTION_CLASSES) {
     const tableOpenMatch = new RegExp(`<table\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*>`, 'i').exec(text);
     if (!tableOpenMatch) continue;
@@ -143,15 +145,23 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
     const windowText = text.slice(fromIdx, Math.min(text.length, fromIdx + 2500));
     const hasColgroup = /<colgroup\b/i.test(windowText);
     const width15Count = (windowText.match(/width\s*:\s*15px/gi) || []).length;
-    const ok = hasColgroup && width15Count >= 2;
-    if (!ok) {
+
+    // Check for page-frame structure
+    if (!hasColgroup) {
       add(
-        requirePrintformjs ? 'error' : 'warn',
+        'error',
+        'SECTION_NO_COLGROUP',
+        `Section ".${cls}" MUST have a <colgroup>. Each section must be a 3-col page-frame table (15px/auto/15px).`,
+      );
+    } else if (width15Count < 2) {
+      add(
+        'error',
         'SECTION_PAGE_FRAME',
-        `Section ".${cls}" should be a 3-col page-frame <table class="${cls}"> with <colgroup> widths 15px/auto/15px.`,
+        `Section ".${cls}" MUST be a 3-col page-frame table with <colgroup> widths 15px/auto/15px. Found ${width15Count} 15px columns, need 2. The section class should be on the OUTER table, not on a nested content table.`,
       );
     }
   }
+
 
   const rowItems = text.match(/class=["'][^"']*\bprowitem\b[^"']*["']/gi)?.length ?? 0;
   if (requireThreePageTest && rowItems < minProwitemCount) {

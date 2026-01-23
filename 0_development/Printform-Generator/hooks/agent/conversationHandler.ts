@@ -2,6 +2,8 @@ import { Sender } from '../../types';
 import type { ConversationHandlerDependencies } from './conversationTypes';
 import { extractToolCallFromText } from './textToolCall';
 import { handleToolCallFlow } from './toolCallFlow';
+import { buildAutoGroundingContext } from './autoGrounding';
+import { debugLog } from '../../utils/debug';
 
 export const processConversationTurn = async (
   inputPayload: string | any[],
@@ -12,6 +14,7 @@ export const processConversationTurn = async (
   const {
     geminiServiceRef,
     getActiveFile,
+    activeTools,
     tasksRef,
     referenceImageRef,
     previewImageRef,
@@ -53,7 +56,9 @@ export const processConversationTurn = async (
   // Preflight: refresh preview snapshot before asking the model to amend code (best-effort).
   if (recursionDepth === 0) {
     const beforeVersion = getPreviewSnapshotVersion();
-    requestPreviewSnapshot();
+    const allowHighRes =
+      (activeTools || []).includes('visual_review') || (activeTools || []).includes('image_analysis');
+    requestPreviewSnapshot(allowHighRes ? { scale: 1.2, jpegQuality: 0.75 } : undefined);
     const ok = await waitForNextPreviewSnapshot(1500, beforeVersion);
     const hasAnySnapshot = Boolean(previewImageRef.current);
 
@@ -105,8 +110,38 @@ export const processConversationTurn = async (
     preview?: { mimeType: string; data: string };
   };
 
+  let enrichedPayload: string | any[] = inputPayload;
+  if (typeof inputPayload === 'string') {
+    const autoGrounding = await buildAutoGroundingContext({
+      userMessage: inputPayload,
+      deps,
+      recursionDepth,
+      hasReferenceImage: Boolean(effectiveReferenceImage),
+    });
+    enrichedPayload = `${autoGrounding}\n\n[USER REQUEST]\n${inputPayload}`;
+    debugLog('conversation.turn.start', {
+      recursionDepth,
+      activeTools,
+      hasReferenceImage: Boolean(effectiveReferenceImage),
+      hasPreviewImage: Boolean(effectivePreviewImage),
+      activeFileName: activeFile?.name,
+      activeFileChars: (activeFile?.content || '').length,
+      autoGroundingChars: autoGrounding.length,
+      autoGroundingPreview: autoGrounding.slice(0, 400),
+    });
+  } else {
+    debugLog('conversation.turn.toolResponse', {
+      recursionDepth,
+      activeTools,
+      hasReferenceImage: Boolean(effectiveReferenceImage),
+      hasPreviewImage: Boolean(effectivePreviewImage),
+      activeFileName: activeFile?.name,
+      activeFileChars: (activeFile?.content || '').length,
+    });
+  }
+
   try {
-    const stream = await service.sendMessageStream(inputPayload, activeFile.content, images, tasksRef.current);
+    const stream = await service.sendMessageStream(enrichedPayload, activeFile.content, images, tasksRef.current);
 
     let fullResponseText = '';
     let functionCallData: any = null;
@@ -133,6 +168,11 @@ export const processConversationTurn = async (
       if (extracted.toolCall) {
         functionCallData = extracted.toolCall;
         fullResponseText = extracted.cleanedText;
+        debugLog('conversation.toolCall.extractedFromText', {
+          name: functionCallData?.name,
+          id: functionCallData?.id,
+          argsKeys: Object.keys(functionCallData?.args || {}),
+        });
         setMessages((prev) => {
           const lastIdx = prev.length - 1;
           const last = prev[lastIdx];
@@ -145,6 +185,11 @@ export const processConversationTurn = async (
     }
 
     if (!functionCallData) {
+      debugLog('conversation.noToolCall', {
+        recursionDepth,
+        responseChars: fullResponseText.length,
+        responseTail: fullResponseText.slice(-300),
+      });
       setMessages((prev) =>
         prev.map((m) =>
           m.sender === Sender.Bot && m.isStreaming ? { ...m, isStreaming: false, statusText: undefined } : m,
@@ -183,11 +228,21 @@ export const processConversationTurn = async (
       return;
     }
 
+    debugLog('conversation.toolCall.detected', {
+      name: functionCallData?.name,
+      id: functionCallData?.id,
+      argsKeys: Object.keys(functionCallData?.args || {}),
+    });
     await handleToolCallFlow(functionCallData, recursionDepth, deps, async (nextInput, depth) => {
       await processConversationTurn(nextInput, undefined, depth, deps);
     });
   } catch (error: any) {
     console.error(error);
+    debugLog('conversation.error', {
+      recursionDepth,
+      message: error?.message,
+      stack: error?.stack,
+    });
     const msg =
       error?.message && String(error.message).includes('API Key')
         ? 'API Key Error. Please check settings.'

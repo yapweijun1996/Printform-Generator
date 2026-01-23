@@ -10,6 +10,7 @@ import {
   executeLoadReferenceTemplate,
   executePrintSafeValidator,
 } from './utilityExecutor';
+import { debugLog } from '../../utils/debug';
 
 const resolveToolName = (toolName: string) =>
   String(toolName || '')
@@ -39,6 +40,12 @@ export const executeToolCall = async (
 
   const currentFile = deps.getActiveFile();
   const currentContent = currentFile.content;
+  debugLog('toolExecutor.call', {
+    tool: resolvedToolName,
+    file: currentFile?.name,
+    currentChars: currentContent.length,
+    argsKeys: Object.keys(args || {}),
+  });
 
   let result: ToolExecutionResult = { success: false, output: `Unknown tool: ${resolvedToolName}` };
 
@@ -85,6 +92,11 @@ export const executeToolCall = async (
       if (result.updatedContent === currentFile.content) {
         result = { success: false, output: 'No changes applied (content identical).' };
       } else {
+        debugLog('toolExecutor.write', {
+          tool: resolvedToolName,
+          beforeChars: currentFile.content.length,
+          afterChars: result.updatedContent.length,
+        });
         deps.updateFileContent(result.updatedContent, description);
       }
     }
