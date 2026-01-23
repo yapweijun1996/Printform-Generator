@@ -38,7 +38,7 @@ export const maybeHandleDiffConfirmation = async (params: {
     if (!strictPreviewGate) return true;
     const beforeVersion = getPreviewSnapshotVersion();
     requestPreviewSnapshot();
-    const ok = await waitForNextPreviewSnapshot(900, beforeVersion);
+    const ok = await waitForNextPreviewSnapshot(1500, beforeVersion);
     if (ok) return true;
 
     const hasAnySnapshot = Boolean(previewImageRef.current);
@@ -56,7 +56,7 @@ export const maybeHandleDiffConfirmation = async (params: {
         timestamp: Date.now(),
         collapsible: {
           title: 'Strict Preview Gate（点击展开）',
-          content: `snapshotRefreshed=false\npreviousVersion=${beforeVersion}\ncurrentVersion=${getPreviewSnapshotVersion()}\ntimeoutMs=900`,
+          content: `snapshotRefreshed=false\npreviousVersion=${beforeVersion}\ncurrentVersion=${getPreviewSnapshotVersion()}\ntimeoutMs=1500`,
           defaultOpen: false,
         },
       },

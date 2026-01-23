@@ -48,7 +48,35 @@ export const getAnchorNotFoundError = (anchor: string) => {
 export const executeModifyCode = (currentContent: string, args: any): ToolExecutionResult => {
   const { operation, search_snippet, new_code } = args;
   if (operation === 'rewrite') {
-    return { success: true, output: 'Rewrote entire file.', updatedContent: String(new_code ?? '') };
+    const next = String(new_code ?? '');
+    const nextTrimmed = next.trim();
+
+    // Safety: prevent accidental "wipe the file" rewrites due to malformed tool calls.
+    // Allow explicit emptying only when the current content is already empty.
+    if (currentContent.trim() && nextTrimmed.length === 0) {
+      return {
+        success: false,
+        output:
+          'Error: Refusing to rewrite the file with empty content. This usually indicates a malformed tool call.\n' +
+          'Recovery:\n' +
+          '- Re-run with operation="rewrite" and provide the FULL HTML.\n' +
+          '- Or use undo_last to revert.',
+      };
+    }
+
+    // Guard against unrealistically short rewrites (likely truncated output).
+    if (currentContent.trim() && nextTrimmed.length > 0 && nextTrimmed.length < 80) {
+      return {
+        success: false,
+        output:
+          `Error: Refusing to rewrite the file with suspiciously short content (${nextTrimmed.length} chars).\n` +
+          'Recovery:\n' +
+          '- Provide the FULL HTML document in new_code.\n' +
+          '- If you intended a small edit, use operation="replace" instead.',
+      };
+    }
+
+    return { success: true, output: 'Rewrote entire file.', updatedContent: next };
   }
 
   if (operation === 'replace') {

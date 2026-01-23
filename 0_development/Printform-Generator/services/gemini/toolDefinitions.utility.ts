@@ -52,9 +52,78 @@ export const printSafeValidatorTool: FunctionDeclaration = {
         type: Type.STRING,
         description: 'Configured page height (e.g. "1050px"). If provided, validator compares against the root style.',
       },
+      require_printformjs: {
+        type: Type.BOOLEAN,
+        description:
+          'If true, missing required PrintForm.js sections become errors (e.g. .pheader, .prowheader, .pfooter_pagenum).',
+      },
+      require_three_page_test: {
+        type: Type.BOOLEAN,
+        description:
+          'If true, requires enough .prowitem rows to reach multiple pages (recommended 70~120 rows for testing).',
+      },
+      min_prowitem_count: {
+        type: Type.INTEGER,
+        description: 'Minimum required .prowitem count when require_three_page_test=true (default 70).',
+      },
       max_issues: {
         type: Type.INTEGER,
         description: 'Maximum number of issues to return (default 50).',
+      },
+    },
+    required: [],
+  },
+};
+
+/**
+ * Strict HTML validator tool
+ * Focuses on valid table nesting rules (thead/tbody/tr/td/colgroup, etc).
+ */
+export const htmlValidationTool: FunctionDeclaration = {
+  name: 'html_validation',
+  description: 'Validate strict HTML table nesting (best-effort). Flags invalid parent/child relationships in tables.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      max_issues: {
+        type: Type.INTEGER,
+        description: 'Maximum number of issues to return (default 80).',
+      },
+      allow_tr_directly_under_table: {
+        type: Type.BOOLEAN,
+        description: 'If true, allow <tr> directly under <table> (implicit <tbody>) (default true).',
+      },
+      allow_table_fragments_in_template: {
+        type: Type.BOOLEAN,
+        description: 'If true, relax rules inside <template> (common in PrintForm.js examples) (default true).',
+      },
+    },
+    required: [],
+  },
+};
+
+/**
+ * Visual review tool
+ * Requests a fresh (optionally higher-res) preview snapshot so the model can compare it with the reference image.
+ */
+export const visualReviewTool: FunctionDeclaration = {
+  name: 'visual_review',
+  description:
+    'Request a fresh current preview snapshot for visual comparison. Use this when you need to confirm pixel-level details vs the reference image.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      scale: {
+        type: Type.NUMBER,
+        description: 'Snapshot scale multiplier (default 0.6; use ~1.0~1.6 for higher resolution).',
+      },
+      jpeg_quality: {
+        type: Type.NUMBER,
+        description: 'JPEG quality 0~1 (default 0.65; higher means larger payload).',
+      },
+      timeout_ms: {
+        type: Type.INTEGER,
+        description: 'Max wait time for a new snapshot (default 1500ms).',
       },
     },
     required: [],

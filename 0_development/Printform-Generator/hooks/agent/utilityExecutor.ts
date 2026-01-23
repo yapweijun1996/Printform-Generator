@@ -1,5 +1,6 @@
 import { makeDiffPreview } from '../../utils/diffPreview';
 import { validatePrintSafe } from '../../utils/printSafeValidator';
+import { validateStrictHtmlTables } from '../../utils/strictHtmlTableValidator';
 import type { ToolExecutionResult } from './toolTypes';
 import { findFuzzyMatch } from './editingExecutor';
 
@@ -38,10 +39,47 @@ export const executePrintSafeValidator = (currentContent: string, args: any): To
   const pageHeight = args?.pageHeight != null ? String(args.pageHeight) : undefined;
   const maxIssues = Number.isFinite(args?.max_issues) ? Number(args.max_issues) : 50;
 
-  const issues = validatePrintSafe(currentContent, { pageWidth, pageHeight, maxIssues });
+  const requirePrintformjs = Boolean(args?.require_printformjs);
+  const requireThreePageTest = Boolean(args?.require_three_page_test);
+  const minProwitemCount = Number.isFinite(args?.min_prowitem_count) ? Number(args.min_prowitem_count) : undefined;
+
+  const issues = validatePrintSafe(currentContent, {
+    pageWidth,
+    pageHeight,
+    maxIssues,
+    requirePrintformjs,
+    requireThreePageTest,
+    minProwitemCount,
+  });
   if (issues.length === 0) return { success: true, output: '✅ No issues found (best-effort validator).' };
   const lines = issues.map((i, idx) => `${idx + 1}. [${i.level.toUpperCase()}] ${i.code}: ${i.message}`);
   return { success: true, output: lines.join('\n') };
+};
+
+export const executeHtmlValidation = (currentContent: string, args: any): ToolExecutionResult => {
+  const maxIssues = Number.isFinite(args?.max_issues) ? Number(args.max_issues) : 80;
+  const allowTrDirectlyUnderTable =
+    typeof args?.allow_tr_directly_under_table === 'boolean' ? Boolean(args.allow_tr_directly_under_table) : true;
+  const allowTableFragmentsInTemplate =
+    typeof args?.allow_table_fragments_in_template === 'boolean'
+      ? Boolean(args.allow_table_fragments_in_template)
+      : true;
+
+  const issues = validateStrictHtmlTables(currentContent, {
+    maxIssues,
+    allowTrDirectlyUnderTable,
+    allowTableFragmentsInTemplate,
+  });
+
+  const hasHardErrors = issues.some((i) => i.level === 'error');
+  const lines = issues.map((i, idx) => {
+    const loc = i.line ? ` (line ${i.line}${i.col ? `:${i.col}` : ''})` : '';
+    return `${idx + 1}. [${i.level.toUpperCase()}] ${i.code}${loc}: ${i.message}`;
+  });
+  return {
+    success: true,
+    output: `${hasHardErrors ? '❌' : '✅'} Strict HTML validation report:\n` + lines.join('\n'),
+  };
 };
 
 export const executeLoadReferenceTemplate = async (args: any): Promise<ToolExecutionResult> => {

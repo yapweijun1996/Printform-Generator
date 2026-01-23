@@ -163,9 +163,9 @@ export const useAgentChat = ({
         diffCheckEnabled: (settings.activeTools || []).includes('diff_check'),
         autoApplyDiff: Boolean(settings.autoApplyDiff),
         strictPreviewGate: Boolean(settings.strictPreviewGate),
-        requestPreviewSnapshot: () => {
+        requestPreviewSnapshot: (opts) => {
           try {
-            window.dispatchEvent(new CustomEvent('formpreview:request_snapshot'));
+            window.dispatchEvent(new CustomEvent('formpreview:request_snapshot', { detail: opts }));
           } catch {
             // ignore
           }

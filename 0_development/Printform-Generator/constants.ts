@@ -70,6 +70,12 @@ export const AVAILABLE_TOOLS: ToolCategory[] = [
         description: 'Understand uploaded form images.',
         implemented: true,
       },
+      {
+        id: 'visual_review',
+        label: 'Visual Review',
+        description: 'Request a fresh high-res preview snapshot for visual diff.',
+        implemented: true,
+      },
     ],
   },
   {
@@ -85,7 +91,7 @@ export const AVAILABLE_TOOLS: ToolCategory[] = [
         id: 'html_validation',
         label: 'Strict HTML Validator',
         description: 'Ensure valid table nesting.',
-        implemented: false,
+        implemented: true,
       },
       {
         id: 'prettier_fmt',

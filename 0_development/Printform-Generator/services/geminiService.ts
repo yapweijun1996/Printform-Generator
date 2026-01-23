@@ -10,6 +10,8 @@ import {
   grepSearchTool,
   diffCheckTool,
   printSafeValidatorTool,
+  htmlValidationTool,
+  visualReviewTool,
   loadReferenceTemplateTool,
 } from './gemini/toolDefinitions';
 import {
@@ -20,6 +22,9 @@ import {
   getConfigurationInstruction,
 } from './gemini/systemInstructions';
 import { ToolMode } from './gemini/types';
+import { buildPrintformSopRagBlock } from './printformSop';
+import { buildAutoPrintSafeBlock } from './agentAugmenters/autoPrintSafe';
+import { buildImageNote, hasAnyImages, pushLabeledImageParts, type GeminiImageInputs } from './gemini/imageContext';
 
 /**
  * Gemini AI 服务类
@@ -86,6 +91,8 @@ export class GeminiService {
     if (this.activeTools.includes('diff_check')) functionDeclarations.push(diffCheckTool);
     if (this.activeTools.includes('undo_last')) functionDeclarations.push(undoLastTool);
     if (this.activeTools.includes('print_safe_validator')) functionDeclarations.push(printSafeValidatorTool);
+    if (this.activeTools.includes('html_validation')) functionDeclarations.push(htmlValidationTool);
+    if (this.activeTools.includes('visual_review')) functionDeclarations.push(visualReviewTool);
     if (this.activeTools.includes('load_reference_template')) functionDeclarations.push(loadReferenceTemplateTool);
 
     // Always push function declarations if they exist
@@ -128,7 +135,7 @@ export class GeminiService {
   async sendMessageStream(
     message: string | Part[],
     currentFileContext: string,
-    images?: Array<{ mimeType: string; data: string }>,
+    images?: GeminiImageInputs,
     currentTasks: AgentTask[] = [],
   ): Promise<any> {
     if (!this.chat) {
@@ -155,10 +162,24 @@ export class GeminiService {
         planContext += '\nInstruction: If there are PENDING tasks, proceed to the next one immediately.\n';
       }
 
+      const hasImages = hasAnyImages(images);
+      const imageNote = buildImageNote(images);
+
       // 检查消息类型:新用户请求 或 函数响应
       if (typeof message === 'string') {
+        const sopRagBlock = buildPrintformSopRagBlock(message);
+        const autoPrintSafeBlock = buildAutoPrintSafeBlock({
+          currentFileContext,
+          pageWidth: this.pageWidth,
+          pageHeight: this.pageHeight,
+        });
+
         // --- 用户请求 ---
         const promptWithContext = `
+[RAG CONTEXT START]
+${[sopRagBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
+[RAG CONTEXT END]
+
 [CURRENT FILE CONTEXT START]
 ${currentFileContext}
 [CURRENT FILE CONTEXT END]
@@ -166,33 +187,24 @@ ${planContext}
 
 Preflight protocol (MANDATORY):
 1) Review the latest preview snapshot image (if provided).
+   - If both a reference image and a current preview image are provided, compare them and report [VISUAL DIFF] before deciding changes.
 2) Review the CURRENT FILE CONTEXT.
 3) Identify the CURRENT TASK from the plan (if any).
 4) Only then decide the next minimal change.
 
-User Request: ${message}
+        User Request: ${message}
 `;
 
-        const hasImages = Array.isArray(images) && images.length > 0;
         if (hasImages) {
-          images.forEach((img) => {
-            messageParts.push({
-              inlineData: {
-                mimeType: img.mimeType,
-                data: img.data,
-              },
-            });
-          });
-
-          const imageNote = `
-[IMAGE CONTEXT]
-- Image 1: Reference image (target layout/style).
-- Image 2 (if present): Current preview snapshot (after latest change). Use it to verify progress and avoid regressions.
-`;
+          pushLabeledImageParts(messageParts, images);
 
           // 如果用户只发送图片没有文字,假设需要复制
           const visualPrompt = !message.trim()
             ? `
+[RAG CONTEXT START]
+${[sopRagBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
+[RAG CONTEXT END]
+
 [CURRENT FILE CONTEXT START]
 ${currentFileContext}
 [CURRENT FILE CONTEXT END]
@@ -215,7 +227,17 @@ ${imageNote}
           const name = fr?.name || 'tool';
           const result = fr?.response?.result ?? '';
           const success = fr?.response?.success ?? false;
+          const sopRagBlock = buildPrintformSopRagBlock(`${name}\n${result}`);
+          const autoPrintSafeBlock = buildAutoPrintSafeBlock({
+            currentFileContext,
+            pageWidth: this.pageWidth,
+            pageHeight: this.pageHeight,
+          });
           const toolResultText = `
+[RAG CONTEXT START]
+${[sopRagBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
+[RAG CONTEXT END]
+
 [CURRENT FILE CONTEXT START]
 ${currentFileContext}
 [CURRENT FILE CONTEXT END]
@@ -227,20 +249,17 @@ ${result}
 Instruction: If there are PENDING tasks, proceed to the next one immediately.
 	If you need to act, output ONE <TOOL_CALL>{...}</TOOL_CALL> at the end.
 `;
-          const hasImages = Array.isArray(images) && images.length > 0;
           if (hasImages) {
-            images.forEach((img) => {
-              messageParts.push({
-                inlineData: {
-                  mimeType: img.mimeType,
-                  data: img.data,
-                },
-              });
-            });
+            pushLabeledImageParts(messageParts, images);
+            messageParts.push({ text: imageNote });
           }
           messageParts.push({ text: toolResultText });
         } else {
           messageParts = message;
+          if (hasImages) {
+            pushLabeledImageParts(messageParts, images);
+            messageParts.push({ text: imageNote });
+          }
         }
       }
 

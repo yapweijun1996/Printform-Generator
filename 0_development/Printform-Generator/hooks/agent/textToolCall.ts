@@ -71,6 +71,10 @@ export const extractToolCallFromText = (text: string) => {
       return { name: 'print_safe_validator', args: parsed };
     }
 
+    if ('allow_tr_directly_under_table' in parsed || 'allow_table_fragments_in_template' in parsed) {
+      return { name: 'html_validation', args: parsed };
+    }
+
     return null as any;
   };
 
@@ -80,6 +84,48 @@ export const extractToolCallFromText = (text: string) => {
     } catch {
       return null;
     }
+  };
+
+  const extractFirstJsonObjectSubstring = (input: string) => {
+    const s = String(input || '');
+    const maxStartsToTry = 20;
+    let startsTried = 0;
+
+    for (let start = 0; start < s.length; start += 1) {
+      if (s[start] !== '{') continue;
+      startsTried += 1;
+      if (startsTried > maxStartsToTry) break;
+
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+
+      for (let i = start; i < s.length; i += 1) {
+        const ch = s[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (ch === '\\\\') {
+          if (inString) escape = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (inString) continue;
+
+        if (ch === '{') depth += 1;
+        if (ch === '}') depth -= 1;
+
+        if (depth === 0) {
+          return { start, end: i + 1, raw: s.slice(start, i + 1) };
+        }
+      }
+    }
+
+    return null as any;
   };
 
   // 1) Preferred format: <TOOL_CALL>{...}</TOOL_CALL>
@@ -118,6 +164,20 @@ export const extractToolCallFromText = (text: string) => {
       return {
         toolCall: { name: inferred.name, args: inferred.args, id: `text-tool-${Date.now()}` },
         cleanedText: '',
+      };
+    }
+  }
+
+  // 4) Fallback: extract the first inline JSON object substring (handles "text ... {..} {..}" cases).
+  const found = extractFirstJsonObjectSubstring(text);
+  if (found?.raw) {
+    const parsed = tryParseJson(found.raw);
+    const inferred = inferToolCallFromParsed(parsed);
+    if (inferred) {
+      const cleanedText = (text.slice(0, found.start) + text.slice(found.end)).trim();
+      return {
+        toolCall: { name: inferred.name, args: inferred.args, id: `text-tool-${Date.now()}` },
+        cleanedText,
       };
     }
   }

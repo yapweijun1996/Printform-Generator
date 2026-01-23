@@ -6,12 +6,24 @@
 export { managePlanTool } from './toolDefinitions.plan';
 export { modifyCodeTool, insertContentTool, undoLastTool } from './toolDefinitions.editing';
 export { readFileTool, readAllFilesTool, grepSearchTool } from './toolDefinitions.grounding';
-export { diffCheckTool, printSafeValidatorTool, loadReferenceTemplateTool } from './toolDefinitions.utility';
+export {
+  diffCheckTool,
+  printSafeValidatorTool,
+  htmlValidationTool,
+  visualReviewTool,
+  loadReferenceTemplateTool,
+} from './toolDefinitions.utility';
 
 import { managePlanTool } from './toolDefinitions.plan';
 import { modifyCodeTool, insertContentTool, undoLastTool } from './toolDefinitions.editing';
 import { readFileTool, readAllFilesTool, grepSearchTool } from './toolDefinitions.grounding';
-import { diffCheckTool, printSafeValidatorTool, loadReferenceTemplateTool } from './toolDefinitions.utility';
+import {
+  diffCheckTool,
+  printSafeValidatorTool,
+  htmlValidationTool,
+  visualReviewTool,
+  loadReferenceTemplateTool,
+} from './toolDefinitions.utility';
 
 /**
  * 获取所有可用的工具定义
@@ -26,5 +38,7 @@ export const getAllTools = () => ({
   grepSearchTool,
   diffCheckTool,
   printSafeValidatorTool,
+  htmlValidationTool,
+  visualReviewTool,
   loadReferenceTemplateTool,
 });

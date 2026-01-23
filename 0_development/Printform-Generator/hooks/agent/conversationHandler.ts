@@ -54,7 +54,7 @@ export const processConversationTurn = async (
   if (recursionDepth === 0) {
     const beforeVersion = getPreviewSnapshotVersion();
     requestPreviewSnapshot();
-    const ok = await waitForNextPreviewSnapshot(900, beforeVersion);
+    const ok = await waitForNextPreviewSnapshot(1500, beforeVersion);
     const hasAnySnapshot = Boolean(previewImageRef.current);
 
     setMessages((prev) => [
@@ -70,7 +70,7 @@ export const processConversationTurn = async (
         timestamp: Date.now(),
         collapsible: {
           title: 'Preflight Audit（点击展开）',
-          content: `snapshotRefreshed=${ok}\npreviousVersion=${beforeVersion}\ncurrentVersion=${getPreviewSnapshotVersion()}\ntimeoutMs=900`,
+          content: `snapshotRefreshed=${ok}\npreviousVersion=${beforeVersion}\ncurrentVersion=${getPreviewSnapshotVersion()}\ntimeoutMs=1500`,
           defaultOpen: false,
         },
       },
@@ -97,10 +97,13 @@ export const processConversationTurn = async (
   const activeFile = getActiveFile();
   const effectiveReferenceImage = image || referenceImageRef.current;
   const effectivePreviewImage = previewImageRef.current;
-  const images = [effectiveReferenceImage, effectivePreviewImage].filter(Boolean) as Array<{
-    mimeType: string;
-    data: string;
-  }>;
+  const images = {
+    reference: effectiveReferenceImage,
+    preview: effectivePreviewImage,
+  } as {
+    reference?: { mimeType: string; data: string };
+    preview?: { mimeType: string; data: string };
+  };
 
   try {
     const stream = await service.sendMessageStream(inputPayload, activeFile.content, images, tasksRef.current);

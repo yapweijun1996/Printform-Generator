@@ -23,6 +23,7 @@ const FormPreview: React.FC<FormPreviewProps> = ({
   const [zoom, setZoom] = useState(0.65);
   const captureTimerRef = useRef<number | null>(null);
   const captureInFlightRef = useRef(false);
+  const captureOptionsRef = useRef<{ scale: number; jpegQuality: number } | null>(null);
 
   const sanitizeForPrint = (html: string) => {
     if (!html) return '';
@@ -128,17 +129,21 @@ const FormPreview: React.FC<FormPreviewProps> = ({
 
       if (!target) return;
 
+      const opts = captureOptionsRef.current;
+      const scale = opts?.scale ?? 0.6;
+      const jpegQuality = opts?.jpegQuality ?? 0.65;
+
       const canvas = await html2canvas(target, {
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: false,
-        scale: 0.6,
+        scale,
         logging: false,
         windowWidth: parseDim(pageWidth),
         windowHeight: parseDim(pageHeight),
       });
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+      const dataUrl = canvas.toDataURL('image/jpeg', jpegQuality);
       const base64 = dataUrl.split(',')[1] || '';
       if (!base64) throw new Error('Empty snapshot data');
 
@@ -148,6 +153,7 @@ const FormPreview: React.FC<FormPreviewProps> = ({
       onPreviewSnapshotError?.(e?.message || 'Preview snapshot capture failed.');
     } finally {
       captureInFlightRef.current = false;
+      captureOptionsRef.current = null;
     }
   }, [onPreviewSnapshot, onPreviewSnapshotError, pageHeight, pageWidth]);
 
@@ -175,9 +181,17 @@ const FormPreview: React.FC<FormPreviewProps> = ({
 
   // Allow non-React callers (e.g., agent flow) to request a fresh snapshot on-demand.
   useEffect(() => {
-    const requestHandler = () => {
+    const requestHandler = (event: CustomEvent<{ scale?: number; jpegQuality?: number }>) => {
       const win = iframeRef.current?.contentWindow;
       if (!win) return;
+      const scale = Number.isFinite(event?.detail?.scale) ? Number(event.detail.scale) : undefined;
+      const jpegQuality = Number.isFinite(event?.detail?.jpegQuality) ? Number(event.detail.jpegQuality) : undefined;
+      if (scale || jpegQuality) {
+        captureOptionsRef.current = {
+          scale: typeof scale === 'number' ? Math.max(0.2, Math.min(3, scale)) : 0.6,
+          jpegQuality: typeof jpegQuality === 'number' ? Math.max(0.1, Math.min(0.95, jpegQuality)) : 0.65,
+        };
+      }
       try {
         win.postMessage({ type: 'printform:format_now' }, '*');
       } catch (_e) {

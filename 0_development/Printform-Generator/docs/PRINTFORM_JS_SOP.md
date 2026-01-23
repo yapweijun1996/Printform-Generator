@@ -152,6 +152,27 @@ flowchart TD
 - `data-show-logical-page-number="y"`：显示逻辑页码（Page 1 of N）
 - `data-show-physical-page-number="n"`：物理页码（Sheet 1 of N）通常不用
 
+### 3.4 可选高级开关（按需启用）
+
+> 说明：以下开关在某些模板（含 PTAC / PADDT 变体、或复杂页脚组合）会用到。若用户需求提到“抬头信息/多段页脚/页脚 Logo/更精细的填充策略”，Copilot 应优先检索并应用这些规则。
+
+- DocInfo（抬头/单据信息）重复：
+  - `data-repeat-docinfo="y"`：重复 `.pdocinfo`
+  - `data-repeat-docinfo002="y"`…`data-repeat-docinfo005="y"`：重复 `.pdocinfo002`…`.pdocinfo005`
+- Footer（业务页脚）重复：
+  - `data-repeat-footer="y"`：重复 `.pfooter`（注意：最终页可能会合并多个 footer 区块）
+  - `data-repeat-footer002="y"`…`data-repeat-footer005="y"`：重复 `.pfooter002`…`.pfooter005`
+- Footer Logo 重复：
+  - `data-repeat-footer-logo="y"`：重复 `.pfooter_logo`
+- 更精细的“填充/顶底”策略（决定 footer 是否稳定贴底）：
+  - `data-height-of-dummy-row-item="26"`：dummy row item 的高度（px 数字）
+  - `data-insert-dummy-row-while-format-table="y"`：插入单个 dummy row block 填充剩余空间
+  - `data-insert-footer-spacer-with-dummy-row-item-while-format-table="y"`：用 dummy row item 作为 footer spacer
+- PTAC / PADDT 变体（如 SOP/模板中出现这些关键字才启用）：
+  - `data-repeat-ptac-rowheader="y"`、`data-insert-ptac-dummy-row-items="y"`
+  - `data-repeat-paddt-rowheader="y"`、`data-insert-paddt-dummy-row-items="y"`
+  - `data-repeat-paddt-docinfo="y"`…`data-repeat-paddt-docinfo005="y"`
+
 ## 4) 页码占位符规则（强烈建议按这个写）
 
 在 `.pfooter_pagenum` 内放：

@@ -10,6 +10,9 @@ export interface PrintSafeValidatorConfig {
   pageWidth?: string;
   pageHeight?: string;
   maxIssues?: number;
+  requirePrintformjs?: boolean;
+  requireThreePageTest?: boolean;
+  minProwitemCount?: number;
 }
 
 const REQUIRED_DATA_ATTRS = [
@@ -23,11 +26,15 @@ const REQUIRED_DATA_ATTRS = [
 ];
 
 const REQUIRED_SECTIONS = ['pheader', 'prowheader', 'pfooter_pagenum'];
+const SECTION_CLASSES = ['pheader', 'pdocinfo', 'pdocinfo002', 'prowheader', 'prowitem', 'pfooter_pagenum'];
 
 const hasAttr = (html: string, attr: string) => new RegExp(`${attr}\\s*=\\s*["'][^"']*["']`, 'i').test(html);
 
 export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig = {}): PrintSafeIssue[] => {
   const maxIssues = config.maxIssues ?? 50;
+  const requirePrintformjs = config.requirePrintformjs ?? false;
+  const requireThreePageTest = config.requireThreePageTest ?? false;
+  const minProwitemCount = config.minProwitemCount ?? 70;
   const issues: PrintSafeIssue[] = [];
   const add = (level: PrintSafeIssueLevel, code: string, message: string) => {
     if (issues.length >= maxIssues) return;
@@ -73,6 +80,19 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
   if (extraDivs > 1)
     add('warn', 'EXTRA_DIVS', 'Found multiple <div> tags. Only the root <div class="printform"> is recommended.');
 
+  // Hard rule: Do not use <div> as containers for PrintForm.js section blocks.
+  // These sections should be deterministic table-based structures for stable pagination/repeat detection.
+  for (const cls of SECTION_CLASSES) {
+    const isWrappedByDiv = new RegExp(`<div\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["']`, 'i').test(text);
+    if (isWrappedByDiv) {
+      add(
+        requirePrintformjs ? 'error' : 'warn',
+        'SECTION_CONTAINER_DIV',
+        `Section ".${cls}" must NOT be a <div>. Use <table>/<tr>/<td> containers for deterministic PrintForm.js layout.`,
+      );
+    }
+  }
+
   if (/<td\b[^>]*\swidth\s*=\s*["']?\d+/i.test(text))
     add('warn', 'TD_WIDTH_ATTR', 'Found <td width="...">. Do not set width on <td>; use <colgroup> instead.');
   if (/<td\b[^>]*style=["'][^"']*\bwidth\s*:/i.test(text))
@@ -100,18 +120,53 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
   }
 
   for (const cls of REQUIRED_SECTIONS) {
-    if (!new RegExp(`class=["'][^"']*\\b${cls}\\b`, 'i').test(text)) {
-      add('warn', 'MISSING_SECTION', `Missing recommended PrintForm.js section: .${cls}`);
+    const hasAny = new RegExp(`class=["'][^"']*\\b${cls}\\b`, 'i').test(text);
+    const hasTable = new RegExp(`<table\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["']`, 'i').test(text);
+    const ok = requirePrintformjs ? hasTable : hasAny;
+    if (!ok) {
+      add(
+        requirePrintformjs ? 'error' : 'warn',
+        'MISSING_SECTION',
+        requirePrintformjs
+          ? `Missing required section table: <table class="${cls}" ...> (SOP: section-as-page-frame table).`
+          : `Missing recommended PrintForm.js section: .${cls}`,
+      );
+    }
+  }
+
+  // SOP: section-as-page-frame table (15px / auto / 15px). Best-effort regex validation.
+  for (const cls of SECTION_CLASSES) {
+    const tableOpenMatch = new RegExp(`<table\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*>`, 'i').exec(text);
+    if (!tableOpenMatch) continue;
+
+    const fromIdx = tableOpenMatch.index;
+    const windowText = text.slice(fromIdx, Math.min(text.length, fromIdx + 2500));
+    const hasColgroup = /<colgroup\b/i.test(windowText);
+    const width15Count = (windowText.match(/width\s*:\s*15px/gi) || []).length;
+    const ok = hasColgroup && width15Count >= 2;
+    if (!ok) {
+      add(
+        requirePrintformjs ? 'error' : 'warn',
+        'SECTION_PAGE_FRAME',
+        `Section ".${cls}" should be a 3-col page-frame <table class="${cls}"> with <colgroup> widths 15px/auto/15px.`,
+      );
     }
   }
 
   const rowItems = text.match(/class=["'][^"']*\bprowitem\b[^"']*["']/gi)?.length ?? 0;
-  if (rowItems < 20)
+  if (requireThreePageTest && rowItems < minProwitemCount) {
+    add(
+      'error',
+      'LOW_ROWITEM_COUNT',
+      `Found only ${rowItems} .prowitem blocks. For 3-page testing, generate at least ${minProwitemCount} items.`,
+    );
+  } else if (rowItems < 20) {
     add(
       'warn',
       'LOW_ROWITEM_COUNT',
       `Found only ${rowItems} .prowitem blocks. For multi-page testing, consider generating 70~120 items.`,
     );
+  }
 
   if (config.pageWidth) {
     const rootStyleWidthOk = new RegExp(

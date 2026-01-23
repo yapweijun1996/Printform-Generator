@@ -4,7 +4,12 @@ import { executeManagePlan } from './planExecutor';
 import { executeReadAllFiles, executeReadFile } from './fileExecutor';
 import { executeGrepSearch } from './searchExecutor';
 import { executeInsertContent, executeModifyCode, executeUndoLast } from './editingExecutor';
-import { executeDiffCheck, executeLoadReferenceTemplate, executePrintSafeValidator } from './utilityExecutor';
+import {
+  executeDiffCheck,
+  executeHtmlValidation,
+  executeLoadReferenceTemplate,
+  executePrintSafeValidator,
+} from './utilityExecutor';
 
 const resolveToolName = (toolName: string) =>
   String(toolName || '')
@@ -19,6 +24,7 @@ const getDefaultDescription = (resolvedToolName: string, args: any) => {
   if (resolvedToolName === 'grep_search') return 'Search project files';
   if (resolvedToolName === 'diff_check') return 'Preview diff';
   if (resolvedToolName === 'print_safe_validator') return 'Validate print-safe rules';
+  if (resolvedToolName === 'html_validation') return 'Validate strict HTML (table nesting)';
   if (resolvedToolName === 'load_reference_template') return 'Load reference template';
   return String(args?.change_description || 'AI Modification');
 };
@@ -58,6 +64,9 @@ export const executeToolCall = async (
         break;
       case 'print_safe_validator':
         result = executePrintSafeValidator(currentContent, args);
+        break;
+      case 'html_validation':
+        result = executeHtmlValidation(currentContent, args);
         break;
       case 'load_reference_template':
         result = await executeLoadReferenceTemplate(args);

@@ -11,7 +11,7 @@ export interface ConversationHandlerDependencies {
   diffCheckEnabled: boolean;
   autoApplyDiff: boolean;
   strictPreviewGate: boolean;
-  requestPreviewSnapshot: () => void;
+  requestPreviewSnapshot: (opts?: { scale?: number; jpegQuality?: number }) => void;
   getPreviewSnapshotVersion: () => number;
   tasksRef: MutableRefObject<AgentTask[]>;
   referenceImageRef: MutableRefObject<{ mimeType: string; data: string } | undefined>;

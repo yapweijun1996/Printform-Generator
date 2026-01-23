@@ -2,6 +2,7 @@ import { Sender } from '../../types';
 import type { ConversationHandlerDependencies } from './conversationTypes';
 import { executeToolCall } from './toolExecutor';
 import { maybeHandleDiffConfirmation } from './diffConfirmation';
+import { validatePrintSafe } from '../../utils/printSafeValidator';
 
 export const handleToolCallFlow = async (
   functionCallData: any,
@@ -17,6 +18,7 @@ export const handleToolCallFlow = async (
     tasksRef,
     setTasks,
     setMessages,
+    setIsLoading,
     setBotStatus,
     waitForNextPreviewSnapshot,
   } = deps;
@@ -25,10 +27,78 @@ export const handleToolCallFlow = async (
   if (functionCallData.name === 'manage_plan') friendlyActionName = 'Updating project plan...';
   if (functionCallData.name === 'modify_code') friendlyActionName = 'Applying code changes...';
   if (functionCallData.name === 'insert_content') friendlyActionName = 'Inserting new content...';
+  if (functionCallData.name === 'visual_review') friendlyActionName = 'Refreshing preview snapshot...';
 
   const runToolAndContinue = async () => {
     setBotStatus(friendlyActionName);
     await new Promise((r) => setTimeout(r, 400));
+
+    if (functionCallData.name === 'visual_review') {
+      const beforeVersion = deps.getPreviewSnapshotVersion();
+      const timeoutMs = Number.isFinite(functionCallData.args?.timeout_ms)
+        ? Number(functionCallData.args.timeout_ms)
+        : 1500;
+      const scale = Number.isFinite(functionCallData.args?.scale) ? Number(functionCallData.args.scale) : undefined;
+      const jpegQuality = Number.isFinite(functionCallData.args?.jpeg_quality)
+        ? Number(functionCallData.args.jpeg_quality)
+        : undefined;
+
+      deps.requestPreviewSnapshot({ scale, jpegQuality });
+      const ok = await waitForNextPreviewSnapshot(timeoutMs, beforeVersion);
+
+      const result = {
+        success: ok,
+        output: ok
+          ? `Preview snapshot refreshed (previousVersion=${beforeVersion}, currentVersion=${deps.getPreviewSnapshotVersion()}).`
+          : `Preview snapshot refresh timed out (previousVersion=${beforeVersion}, currentVersion=${deps.getPreviewSnapshotVersion()}, timeoutMs=${timeoutMs}).`,
+      };
+
+      setMessages((prev) => {
+        const lastIdx = prev.length - 1;
+        const lastMsg = prev[lastIdx];
+        if (!lastMsg || lastMsg.sender !== Sender.Bot) return prev;
+        return prev.map((m, i) =>
+          i !== lastIdx
+            ? m
+            : {
+                ...m,
+                isStreaming: false,
+                statusText: undefined,
+                toolCall: {
+                  name: functionCallData.name,
+                  args: functionCallData.args,
+                  status: result.success ? 'success' : 'error',
+                },
+                collapsible: {
+                  title: `${result.success ? '✅' : '❌'} visual_review Result`,
+                  content: result.output,
+                  defaultOpen: false,
+                },
+              },
+        );
+      });
+
+      setBotStatus(undefined);
+
+      const isTextToolCall = String(functionCallData.id || '').startsWith('text-tool-');
+      if (isTextToolCall) {
+        await continueConversation(
+          `ToolResult (${functionCallData.name}): success=${result.success}\n${result.output}\n\nContinue with the next pending task.`,
+          recursionDepth + 1,
+        );
+        return;
+      }
+
+      const functionResponsePart = {
+        functionResponse: {
+          name: functionCallData.name,
+          id: functionCallData.id,
+          response: { result: result.output, success: result.success },
+        },
+      };
+      await continueConversation([functionResponsePart], recursionDepth + 1);
+      return;
+    }
 
     const result = await executeToolCall(functionCallData.name, functionCallData.args, {
       getActiveFile,
@@ -42,6 +112,88 @@ export const handleToolCallFlow = async (
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
       const before = deps.getPreviewSnapshotVersion();
       await waitForNextPreviewSnapshot(1400, before);
+    }
+
+    // Post-edit hard gate: if validator finds ERRORs, block auto-advancing plan and ask model to fix.
+    let postEditBlockMessage: string | null = null;
+    let hasBlockingValidationErrors = false;
+    if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
+      const currentContent = getActiveFile().content;
+      const currentTasks = tasksRef.current || [];
+      const hasPendingOrInProgress = currentTasks.some((t) => t.status === 'pending' || t.status === 'in_progress');
+      const requireThreePageTest = currentTasks.some((t) =>
+        /3\s*-?\s*page|three\s*-?\s*page|70\s*~\s*120|70\s*-\s*120|prowitem|line\s*items/i.test(String(t.description)),
+      );
+      const issues = validatePrintSafe(currentContent, {
+        // Only enforce full PrintForm.js section strictness when the plan has finished,
+        // otherwise intermediate steps (e.g. header-only) would be blocked too early.
+        requirePrintformjs: !hasPendingOrInProgress,
+        requireThreePageTest: !hasPendingOrInProgress && requireThreePageTest,
+        minProwitemCount: 70,
+        maxIssues: 50,
+      });
+      const errors = issues.filter((i) => i.level === 'error');
+      if (errors.length > 0) {
+        hasBlockingValidationErrors = true;
+        postEditBlockMessage = issues
+          .map((i, idx) => `${idx + 1}. [${i.level.toUpperCase()}] ${i.code}: ${i.message}`)
+          .join('\n');
+      }
+    }
+
+    if (hasBlockingValidationErrors && postEditBlockMessage) {
+      const retryId = `print-safe-retry-${Date.now()}`;
+      setBotStatus(undefined);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `print-safe-block-${Date.now()}`,
+          sender: Sender.Bot,
+          text: '已阻止继续：本次改动未通过 Print-safe 校验（必须先修复错误）。',
+          timestamp: Date.now(),
+          collapsible: {
+            title: 'Print-safe Validator（点击展开）',
+            content: postEditBlockMessage,
+            defaultOpen: true,
+          },
+        },
+        {
+          id: retryId,
+          sender: Sender.Bot,
+          text: '要让 AI 立即修复这些错误吗？',
+          timestamp: Date.now(),
+          actions: [
+            {
+              label: 'Fix Now',
+              variant: 'primary',
+              onAction: async () => {
+                setMessages((prev) => prev.map((m) => (m.id === retryId ? { ...m, actions: [] } : m)));
+                await continueConversation(
+                  `Validation failed after the last edit. Fix these issues now and do NOT proceed to the next task until there are no ERRORs.\n\n${postEditBlockMessage}`,
+                  recursionDepth + 1,
+                );
+              },
+            },
+            {
+              label: 'Undo',
+              variant: 'danger',
+              onAction: async () => {
+                setMessages((prev) => prev.map((m) => (m.id === retryId ? { ...m, actions: [] } : m)));
+                setIsLoading(true);
+                const ok = revertToLatestHistory();
+                if (ok) {
+                  const before = deps.getPreviewSnapshotVersion();
+                  await waitForNextPreviewSnapshot(1400, before);
+                }
+                setIsLoading(false);
+              },
+            },
+          ],
+        },
+      ]);
+
+      setIsLoading(false);
+      return;
     }
 
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
