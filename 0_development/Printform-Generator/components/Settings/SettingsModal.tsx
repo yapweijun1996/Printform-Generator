@@ -143,7 +143,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   value={
                     Number.isFinite(localSettings.minRowItemsForPaginationTest)
                       ? localSettings.minRowItemsForPaginationTest
-                      : 70
+                      : 20
                   }
                   onChange={(e) => {
                     const next = Number.parseInt(e.target.value, 10);
@@ -153,7 +153,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                     });
                   }}
                   className="w-full px-3 py-2 border border-erp-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-erp-800 font-mono"
-                  placeholder="70"
+                  placeholder="20"
                 />
                 <p className="text-xs text-erp-500">
                   用于“3 页测试”的提示阈值（不是硬性限制）。dummy row item

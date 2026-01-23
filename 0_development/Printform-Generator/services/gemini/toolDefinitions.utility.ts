@@ -60,11 +60,11 @@ export const printSafeValidatorTool: FunctionDeclaration = {
       require_three_page_test: {
         type: Type.BOOLEAN,
         description:
-          'If true, requires enough .prowitem rows to reach multiple pages (recommended 70~120 rows for testing).',
+          'If true, requires enough .prowitem rows to reach multiple pages (recommended 20~30 rows for quick testing).',
       },
       min_prowitem_count: {
         type: Type.INTEGER,
-        description: 'Minimum required .prowitem count when require_three_page_test=true (default 70).',
+        description: 'Minimum required .prowitem count when require_three_page_test=true (default 20).',
       },
       max_issues: {
         type: Type.INTEGER,

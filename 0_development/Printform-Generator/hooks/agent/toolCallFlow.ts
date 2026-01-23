@@ -69,20 +69,20 @@ export const handleToolCallFlow = async (
           i !== lastIdx
             ? m
             : {
-                ...m,
-                isStreaming: false,
-                statusText: undefined,
-                toolCall: {
-                  name: functionCallData.name,
-                  args: functionCallData.args,
-                  status: result.success ? 'success' : 'error',
-                },
-                collapsible: {
-                  title: `${result.success ? '✅' : '❌'} visual_review Result`,
-                  content: result.output,
-                  defaultOpen: false,
-                },
+              ...m,
+              isStreaming: false,
+              statusText: undefined,
+              toolCall: {
+                name: functionCallData.name,
+                args: functionCallData.args,
+                status: result.success ? 'success' : 'error',
               },
+              collapsible: {
+                title: `${result.success ? '✅' : '❌'} visual_review Result`,
+                content: result.output,
+                defaultOpen: false,
+              },
+            },
         );
       });
 
@@ -148,7 +148,7 @@ export const handleToolCallFlow = async (
         // otherwise intermediate steps (e.g. header-only) would be blocked too early.
         requirePrintformjs: !hasPendingOrInProgress,
         requireThreePageTest: !hasPendingOrInProgress && requireThreePageTest,
-        minProwitemCount: 70,
+        minProwitemCount: 20,
         maxIssues: 50,
       });
       const errors = issues.filter((i) => i.level === 'error');
@@ -263,9 +263,9 @@ export const handleToolCallFlow = async (
             },
             collapsible: shouldCollapse
               ? {
-                  title: `${result.success ? '✅' : '❌'} ${functionCallData.name} Result`,
-                  content: result.output,
-                }
+                title: `${result.success ? '✅' : '❌'} ${functionCallData.name} Result`,
+                content: result.output,
+              }
               : undefined,
             text: (m.text || '') + shortAppend,
           };

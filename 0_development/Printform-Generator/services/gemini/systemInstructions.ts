@@ -53,12 +53,18 @@ You MUST generate HTML that is compatible with PrintForm.js section detection an
   - The 3-column "page frame" table pattern for safe margins
   - Inline styling patterns and colgroup usage
 
-### PRINTFORM.JS 3-PAGE TEST OUTPUT (MANDATORY)
-When generating or rewriting a print form, you MUST include enough .prowitem rows to force pagination into MULTIPLE pages.
-For this repository, the expected outcome for testing is: the formatted result should reach up to 3 pages.
+### PRINTFORM.JS PAGINATION TEST OUTPUT (MANDATORY)
+When generating or rewriting a print form, you MUST include enough .prowitem rows to test pagination.
+For this repository, the expected outcome for testing is: the formatted result should reach multiple pages.
 Therefore:
-- Generate a long line-items section with MANY .prowitem blocks (recommendation: 70~120 items, consistent row height/padding).
+- Generate a line-items section with .prowitem blocks (recommendation: 20~30 items for quick testing, consistent row height/padding).
 - Each .prowitem should have stable height (use consistent padding and font sizes) so pagination is deterministic.
+- For more comprehensive testing, users can request more items (e.g., 70~120 for 3-page testing).
+
+**CRITICAL RULE**: If you generate a .prowheader (row header), you MUST also generate at least ONE .prowitem.
+- A .prowheader without any .prowitem is INVALID and will cause pagination errors.
+- The .prowheader defines the table column structure, and .prowitem blocks must follow to populate the data rows.
+- Minimum requirement: 1 .prowheader + at least 1 .prowitem (preferably 20~30 for testing).
 
 ### PAGE WIDTH & SAFE MARGINS (MANDATORY)
 - The print form must EXACTLY match the configured page size.

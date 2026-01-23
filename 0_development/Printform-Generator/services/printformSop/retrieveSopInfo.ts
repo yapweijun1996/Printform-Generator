@@ -126,6 +126,8 @@ const inferQueryTerms = (intentQuery: string): string[] => {
     '.prowheader',
     'data-repeat-rowheader',
     'data-repeat-rowheader="y"',
+    '必须配对 .prowitem',
+    'prowheader 必须有 prowitem',
   ]);
   addIf(/页脚|footer/.test(q), [
     '.pfooter',

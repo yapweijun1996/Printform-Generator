@@ -163,14 +163,25 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
   }
 
 
+  // CRITICAL: If .prowheader exists, there MUST be at least one .prowitem
+  const hasProwheader = /class=["'][^"']*\bprowheader\b[^"']*["']/i.test(text);
   const rowItems = text.match(/class=["'][^"']*\bprowitem\b[^"']*["']/gi)?.length ?? 0;
+
+  if (hasProwheader && rowItems === 0) {
+    add(
+      'error',
+      'PROWHEADER_WITHOUT_PROWITEM',
+      'Found .prowheader but NO .prowitem blocks. A row header without data rows is INVALID. Generate at least 1 .prowitem (preferably 20~30 for testing).',
+    );
+  }
+
   if (requireThreePageTest && rowItems < minProwitemCount) {
     add(
       'error',
       'LOW_ROWITEM_COUNT',
       `Found only ${rowItems} .prowitem blocks. For 3-page testing, generate at least ${minProwitemCount} items.`,
     );
-  } else if (rowItems < 20) {
+  } else if (rowItems < 20 && rowItems > 0) {
     add(
       'warn',
       'LOW_ROWITEM_COUNT',

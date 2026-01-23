@@ -22,9 +22,9 @@ export const useSettings = () => {
           strictPreviewGate: Boolean(parsed.strictPreviewGate),
           minRowItemsForPaginationTest:
             typeof parsed.minRowItemsForPaginationTest === 'number' &&
-            Number.isFinite(parsed.minRowItemsForPaginationTest)
+              Number.isFinite(parsed.minRowItemsForPaginationTest)
               ? parsed.minRowItemsForPaginationTest
-              : 70,
+              : 20,
         };
       }
     } catch (e) {
@@ -38,7 +38,7 @@ export const useSettings = () => {
       pageHeight: '1050px',
       autoApplyDiff: false,
       strictPreviewGate: false,
-      minRowItemsForPaginationTest: 70,
+      minRowItemsForPaginationTest: 20,
     };
   });
 
