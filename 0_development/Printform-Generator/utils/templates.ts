@@ -46,6 +46,7 @@ const buildInitialHtml = (params: { pageWidthPx: number; pageHeightPx: number; r
   data-papersize-width="${pageWidthPx}"
   data-papersize-height="${pageHeightPx}"
   data-repeat-header="y"
+  data-repeat-docinfo="y"
   data-repeat-rowheader="y"
   data-repeat-footer-pagenum="y"
   data-insert-footer-spacer-while-format-table="y"

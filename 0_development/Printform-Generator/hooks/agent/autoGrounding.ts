@@ -1,7 +1,7 @@
 import { validatePrintSafe } from '../../utils/printSafeValidator';
 import { validateStrictHtmlTables } from '../../utils/strictHtmlTableValidator';
 import type { ConversationHandlerDependencies } from './conversationTypes';
-import { executeLoadReferenceTemplate } from './utilityExecutor';
+import { getToolByName } from './toolRegistry';
 
 const clip = (s: string, max: number) => {
   const text = String(s || '');
@@ -58,7 +58,10 @@ export const buildAutoGroundingContext = async (params: {
   // 1) Optional template retrieval (for new/generate tasks)
   if (enabled.has('load_reference_template') && shouldAutoLoadTemplate(userMessage, currentHtml)) {
     const templateName = inferTemplateName(userMessage);
-    const templateResult = await executeLoadReferenceTemplate({ template_name: templateName, max_chars: 8000 });
+    const loadTemplateTool = getToolByName('load_reference_template');
+    const templateResult = loadTemplateTool
+      ? await loadTemplateTool.call({ template_name: templateName, max_chars: 8000 }, { getActiveFile: deps.getActiveFile, getAllFiles: deps.getAllFiles, updateFileContent: deps.updateFileContent, revertToLatestHistory: () => false, tasksRef: deps.tasksRef, setTasks: deps.setTasks })
+      : { success: false, output: 'load_reference_template tool not registered.' };
     parts.push(`- reference_template: ${templateName}`);
     parts.push(clip(templateResult.output, 2500));
   }
@@ -92,7 +95,18 @@ export const buildAutoGroundingContext = async (params: {
     parts.push(summarizeIssues(htmlIssues as any, 8));
   }
 
-  // 3) Vision hint (no tool call here; only instruction)
+  // 3) Proactive prowitem count hint
+  if (currentHtml.trim() && looksLikePrintform(currentHtml)) {
+    const prowitemCount = (currentHtml.match(/class=["'][^"']*\bprowitem\b[^"']*["']/gi) || []).length;
+    const hasProwheader = /class=["'][^"']*\bprowheader\b/i.test(currentHtml);
+    if (hasProwheader && prowitemCount === 0) {
+      parts.push('- WARNING: prowheader exists but 0 prowitem blocks. You MUST add at least 20~30 prowitem rows.');
+    } else if (prowitemCount > 0 && prowitemCount < 20) {
+      parts.push(`- HINT: Only ${prowitemCount} prowitem blocks. Consider generating 20~30 for pagination testing.`);
+    }
+  }
+
+  // 4) Vision hint (no tool call here; only instruction)
   if (isFirstTurn && shouldUseVision && hasReferenceImage) {
     parts.push('- vision: reference+preview available -> MUST output [VISUAL DIFF] before editing.');
   }

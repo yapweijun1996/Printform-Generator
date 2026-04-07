@@ -55,6 +55,14 @@ export interface AgentTask {
   id: string;
   description: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'retrying';
+  /** Acceptance criteria that must be met before task can be marked completed */
+  acceptanceCriteria?: string[];
+  /** IDs of tasks that must complete before this one can start */
+  dependsOn?: string[];
+  /** IDs of tasks currently blocking this one */
+  blockedBy?: string[];
+  /** Evidence collected during execution (validator results, screenshots, etc.) */
+  evidence?: string[];
 }
 
 export interface AuditLogEntry {

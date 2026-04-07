@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message, Sender, AgentTask, UserSettings, ProjectFile } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { processConversationTurn } from './agent/conversationHandler';
+import { runAgentLoop } from './agent/agentLoop';
+import { hasRecoverableSession, clearPersistedSession } from './agent/sessionManager';
 
 interface UseAgentChatProps {
   settings: UserSettings;
@@ -132,6 +133,55 @@ export const useAgentChat = ({
     });
   }, []);
 
+  // Check for recoverable session on mount
+  const [hasResumableSession, setHasResumableSession] = useState(false);
+  useEffect(() => {
+    hasRecoverableSession().then(setHasResumableSession);
+  }, []);
+
+  // Resume last session
+  const resumeSession = useCallback(async () => {
+    if (!settings.apiKey) return;
+    setIsLoading(true);
+    setHasResumableSession(false);
+    await runAgentLoop('Resume previous session.', undefined, {
+      geminiServiceRef,
+      getActiveFile,
+      getAllFiles,
+      updateFileContent,
+      revertToLatestHistory,
+      activeTools: settings.activeTools || [],
+      pageWidth: settings.pageWidth,
+      pageHeight: settings.pageHeight,
+      minRowItemsForPaginationTest: settings.minRowItemsForPaginationTest ?? 70,
+      diffCheckEnabled: (settings.activeTools || []).includes('diff_check'),
+      autoApplyDiff: Boolean(settings.autoApplyDiff),
+      strictPreviewGate: Boolean(settings.strictPreviewGate),
+      requestPreviewSnapshot: (opts) => {
+        try {
+          window.dispatchEvent(new CustomEvent('formpreview:request_snapshot', { detail: opts }));
+        } catch { /* ignore */ }
+      },
+      getPreviewSnapshotVersion,
+      tasksRef,
+      referenceImageRef,
+      previewImageRef,
+      waitForNextPreviewSnapshot,
+      setTasks,
+      setMessages,
+      setIsLoading,
+      setBotStatus,
+      autoLoopGuardRef,
+    }, { tryRestore: true });
+  }, [settings, getActiveFile, getAllFiles, updateFileContent, revertToLatestHistory, getPreviewSnapshotVersion, setBotStatus, waitForNextPreviewSnapshot]);
+
+  // Clear persisted session
+  const clearSession = useCallback(async () => {
+    await clearPersistedSession();
+    setHasResumableSession(false);
+    setTasks([]);
+  }, []);
+
   // 发送消息的公共接口
   const sendMessage = useCallback(
     async (text: string, image?: { mimeType: string; data: string }) => {
@@ -166,8 +216,8 @@ export const useAgentChat = ({
       // Full-auto multi-step: keep the last uploaded reference image for all subsequent task turns
       if (image) referenceImageRef.current = image;
 
-      // 开始对话处理
-      await processConversationTurn(text, image, 0, {
+      // 开始 Agent Loop (while-loop 模式)
+      await runAgentLoop(text, image, {
         geminiServiceRef,
         getActiveFile,
         getAllFiles,
@@ -218,5 +268,8 @@ export const useAgentChat = ({
     sendMessage,
     setPreviewSnapshot,
     notifyPreviewSnapshotError,
+    hasResumableSession,
+    resumeSession,
+    clearSession,
   };
 };

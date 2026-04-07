@@ -80,18 +80,8 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
   if (extraDivs > 1)
     add('warn', 'EXTRA_DIVS', 'Found multiple <div> tags. Only the root <div class="printform"> is recommended.');
 
-  // Hard rule: Do not use <div> as containers for PrintForm.js section blocks.
-  // These sections should be deterministic table-based structures for stable pagination/repeat detection.
-  for (const cls of SECTION_CLASSES) {
-    const isWrappedByDiv = new RegExp(`<div\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["']`, 'i').test(text);
-    if (isWrappedByDiv) {
-      add(
-        requirePrintformjs ? 'error' : 'warn',
-        'SECTION_CONTAINER_DIV',
-        `Section ".${cls}" must NOT be a <div>. Use <table>/<tr>/<td> containers for deterministic PrintForm.js layout.`,
-      );
-    }
-  }
+  // Note: PrintForm.js sections can be <div> or <table> — both work.
+  // We only check that the section class is on a direct child of .printform, not nested inside another section.
 
   if (/<td\b[^>]*\swidth\s*=\s*["']?\d+/i.test(text))
     add('warn', 'TD_WIDTH_ATTR', 'Found <td width="...">. Do not set width on <td>; use <colgroup> instead.');
@@ -134,8 +124,8 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
     }
   }
 
-  // SOP: section-as-page-frame table (15px / auto / 15px). Best-effort regex validation.
-  // CRITICAL: Every section MUST be a page-frame table, not just when requirePrintformjs is true.
+  // Check that table-based sections have proper structure (best-effort).
+  // Note: div-based sections don't need colgroup — this only checks table sections.
   for (const cls of SECTION_CLASSES) {
     const tableOpenMatch = new RegExp(`<table\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*>`, 'i').exec(text);
     if (!tableOpenMatch) continue;
@@ -143,20 +133,13 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
     const fromIdx = tableOpenMatch.index;
     const windowText = text.slice(fromIdx, Math.min(text.length, fromIdx + 2500));
     const hasColgroup = /<colgroup\b/i.test(windowText);
-    const width15Count = (windowText.match(/width\s*:\s*15px/gi) || []).length;
+    const hasWidthOnTd = /width\s*:\s*\d+px/gi.test(windowText);
 
-    // Check for page-frame structure
-    if (!hasColgroup) {
+    if (!hasColgroup && !hasWidthOnTd) {
       add(
-        'error',
-        'SECTION_NO_COLGROUP',
-        `Section ".${cls}" MUST have a <colgroup>. Each section must be a 3-col page-frame table (15px/auto/15px).`,
-      );
-    } else if (width15Count < 2) {
-      add(
-        'error',
-        'SECTION_PAGE_FRAME',
-        `Section ".${cls}" MUST be a 3-col page-frame table with <colgroup> widths 15px/auto/15px. Found ${width15Count} 15px columns, need 2. The section class should be on the OUTER table, not on a nested content table.`,
+        'warn',
+        'SECTION_NO_WIDTH',
+        `Table section ".${cls}" has no <colgroup> or <td width>. Consider adding column widths for consistent layout.`,
       );
     }
   }
@@ -185,6 +168,40 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
       'LOW_ROWITEM_COUNT',
       `Found only ${rowItems} .prowitem blocks. For multi-page testing, consider generating 70~120 items.`,
     );
+  }
+
+  // P1: prowheader/prowitem column count consistency
+  const countCols = (pattern: RegExp) => {
+    const match = text.match(pattern);
+    if (!match) return 0;
+    const block = text.slice(match.index!, Math.min(text.length, match.index! + 2500));
+    return (block.match(/<col\b/gi) || []).length;
+  };
+  const prowheaderCols = countCols(/<table\b[^>]*class=["'][^"']*\bprowheader\b[^"']*["'][^>]*>/i);
+  const prowitemMatch = /<table\b[^>]*class=["'][^"']*\bprowitem\b[^"']*["'][^>]*>/i;
+  const prowitemCols = countCols(prowitemMatch);
+  if (prowheaderCols > 0 && prowitemCols > 0 && prowheaderCols !== prowitemCols) {
+    add(
+      'error',
+      'COLUMN_COUNT_MISMATCH',
+      `prowheader has ${prowheaderCols} columns but prowitem has ${prowitemCols} columns. Column counts must match for proper alignment.`,
+    );
+  }
+
+  // P1: processed class styling check
+  const usesProcessedSections = /\.(pheader|prowheader|prowitem|pfooter_pagenum|printform)/i.test(text);
+  const hasStyleBlock = /<style\b/i.test(text);
+  if (usesProcessedSections && hasStyleBlock) {
+    const styleContent = text.match(/<style\b[^>]*>([\s\S]*?)<\/style>/i)?.[1] || '';
+    const hasOriginalClass = /\.(pheader|prowheader|prowitem|pfooter_pagenum|printform)\b/i.test(styleContent);
+    const hasProcessedClass = /_processed\b/i.test(styleContent);
+    if (hasOriginalClass && !hasProcessedClass) {
+      add(
+        'warn',
+        'MISSING_PROCESSED_CLASS',
+        'CSS targets original PrintForm.js classes but not _processed variants. PrintForm.js renames classes during formatting (e.g. .pheader → .pheader_processed). Target both.',
+      );
+    }
   }
 
   if (config.pageWidth) {

@@ -71,7 +71,23 @@ const App: React.FC = () => {
         activeHtmlContent={activeFile?.content || ''}
       />
 
-      {/* 左侧边栏 */}
+      {/* 左侧工作区 */}
+      <WorkArea
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        activeFile={activeFile}
+        isLoading={isLoading}
+        pageWidth={settings.pageWidth}
+        pageHeight={settings.pageHeight}
+        onCodeChange={handleCodeChange}
+        onPreviewSnapshot={setPreviewSnapshot}
+        onPreviewSnapshotError={notifyPreviewSnapshotError}
+      />
+
+      {/* 拖拽调整手柄 */}
+      <ResizeHandle onMouseDown={startResizing} isResizing={isResizing} />
+
+      {/* 右侧边栏 */}
       <Sidebar
         width={sidebarWidth}
         activeTab={activeTab}
@@ -90,22 +106,6 @@ const App: React.FC = () => {
         onRevert={revertToHistory}
         settings={settings}
         onOpenSettings={() => setIsSettingsOpen(true)}
-      />
-
-      {/* 拖拽调整手柄 */}
-      <ResizeHandle onMouseDown={startResizing} isResizing={isResizing} />
-
-      {/* 右侧工作区 */}
-      <WorkArea
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        activeFile={activeFile}
-        isLoading={isLoading}
-        pageWidth={settings.pageWidth}
-        pageHeight={settings.pageHeight}
-        onCodeChange={handleCodeChange}
-        onPreviewSnapshot={setPreviewSnapshot}
-        onPreviewSnapshotError={notifyPreviewSnapshotError}
       />
     </div>
   );

@@ -190,9 +190,17 @@ export class GeminiService {
       // 检查消息类型:新用户请求 或 函数响应
       if (typeof message === 'string') {
         const sopRagBlock = buildPrintformSopRagBlock(message);
-        const semanticRagBlock = this.semanticRagEnabled
-          ? await this.semanticRag?.buildRagBlock({ query: message, topK: this.semanticRagTopK })
-          : '';
+        let semanticRagBlock = '';
+        if (this.semanticRagEnabled && this.semanticRag) {
+          try {
+            // Timeout: 如果 embedding API 不可用，5 秒后放弃
+            const ragPromise = this.semanticRag.buildRagBlock({ query: message, topK: this.semanticRagTopK });
+            const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve(''), 5000));
+            semanticRagBlock = await Promise.race([ragPromise, timeoutPromise]) || '';
+          } catch {
+            semanticRagBlock = '';
+          }
+        }
         const groundingBlock = (semanticRagBlock || sopRagBlock).trim();
         const autoPrintSafeBlock = buildAutoPrintSafeBlock({
           currentFileContext,
@@ -282,11 +290,9 @@ Instruction: If there are PENDING tasks, proceed to the next one immediately.
           }
           messageParts.push({ text: toolResultText });
         } else {
+          // function_calling 模式: functionResponse 必须是纯净的，不能附加图片或文本
+          // Gemini API 要求 function_response 紧跟在 function_call 之后，不能有其他内容
           messageParts = message;
-          if (hasImages) {
-            pushLabeledImageParts(messageParts, images);
-            messageParts.push({ text: imageNote });
-          }
         }
       }
 

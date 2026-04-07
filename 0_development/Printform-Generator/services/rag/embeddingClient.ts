@@ -24,13 +24,17 @@ export class GeminiEmbeddingClient {
     const all: number[][] = [];
     for (let i = 0; i < texts.length; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
-      const response = await this.ai.models.embedContent({
-        model,
-        contents: batch,
-        config: { outputDimensionality: outputDim },
-      });
-      const embeddings = response.embeddings || [];
-      all.push(...embeddings.map((e) => e.values || []));
+      // Embed one at a time — the SDK routes multi-content to batchEmbedContents
+      // which returns 404 for text-embedding-004 on the Google AI (non-Vertex) API.
+      for (const text of batch) {
+        const response = await this.ai.models.embedContent({
+          model,
+          contents: text,
+          config: { outputDimensionality: outputDim },
+        });
+        const embeddings = response.embeddings || [];
+        all.push(...embeddings.map((e) => e.values || []));
+      }
     }
     return all;
   }

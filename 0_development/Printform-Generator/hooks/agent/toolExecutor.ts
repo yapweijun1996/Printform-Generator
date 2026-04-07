@@ -1,119 +1,92 @@
 import type { ToolExecutorDependencies, ToolExecutionResult } from './toolTypes';
+import type { ToolContext } from './Tool';
 import { logToolResult } from '../../utils/auditLogger';
-import { executeManagePlan } from './planExecutor';
-import { executeReadAllFiles, executeReadFile } from './fileExecutor';
-import { executeGrepSearch } from './searchExecutor';
-import { executeInsertContent, executeModifyCode, executeUndoLast } from './editingExecutor';
-import {
-  executeDiffCheck,
-  executeHtmlValidation,
-  executeLoadReferenceTemplate,
-  executePrintSafeValidator,
-} from './utilityExecutor';
+import { getToolByName, resolveToolName } from './toolRegistry';
 import { debugLog } from '../../utils/debug';
 
-const resolveToolName = (toolName: string) =>
-  String(toolName || '')
-    .trim()
-    .split('|')[0]
-    .trim();
+/**
+ * 将 ToolExecutorDependencies 转换为统一的 ToolContext
+ */
+const toToolContext = (deps: ToolExecutorDependencies): ToolContext => ({
+  getActiveFile: deps.getActiveFile,
+  getAllFiles: deps.getAllFiles,
+  updateFileContent: deps.updateFileContent,
+  revertToLatestHistory: deps.revertToLatestHistory,
+  tasksRef: deps.tasksRef,
+  setTasks: deps.setTasks,
+});
 
-const getDefaultDescription = (resolvedToolName: string, args: any) => {
-  if (resolvedToolName === 'manage_plan') return `Plan: ${String(args?.action || 'update')}`;
-  if (resolvedToolName === 'read_file') return 'Read active file';
-  if (resolvedToolName === 'read_all_files') return 'Read all project files';
-  if (resolvedToolName === 'grep_search') return 'Search project files';
-  if (resolvedToolName === 'diff_check') return 'Preview diff';
-  if (resolvedToolName === 'print_safe_validator') return 'Validate print-safe rules';
-  if (resolvedToolName === 'html_validation') return 'Validate strict HTML (table nesting)';
-  if (resolvedToolName === 'load_reference_template') return 'Load reference template';
-  return String(args?.change_description || 'AI Modification');
-};
-
+/**
+ * Execute a tool call, returning structured result with artifacts/stateDelta/followupHints
+ */
 export const executeToolCall = async (
   toolName: string,
   args: any,
   deps: ToolExecutorDependencies,
 ): Promise<ToolExecutionResult> => {
-  const resolvedToolName = resolveToolName(toolName);
-  const description = getDefaultDescription(resolvedToolName, args);
+  const resolved = resolveToolName(toolName);
+  const tool = getToolByName(resolved);
+
+  if (!tool) {
+    return { success: false, output: `Unknown tool: ${resolved}` };
+  }
 
   const currentFile = deps.getActiveFile();
-  const currentContent = currentFile.content;
+  const beforeSnapshotContent = tool.isDestructive ? currentFile.content : undefined;
+
   debugLog('toolExecutor.call', {
-    tool: resolvedToolName,
+    tool: resolved,
     file: currentFile?.name,
-    currentChars: currentContent.length,
+    currentChars: currentFile.content.length,
     argsKeys: Object.keys(args || {}),
+    isConcurrencySafe: tool.isConcurrencySafe,
+    isDestructive: tool.isDestructive,
   });
 
-  let result: ToolExecutionResult = { success: false, output: `Unknown tool: ${resolvedToolName}` };
+  const description = tool.friendlyName + (args?.change_description ? `: ${args.change_description}` : '');
 
   try {
-    switch (resolvedToolName) {
-      case 'manage_plan':
-        result = await executeManagePlan(args, deps.tasksRef, deps.setTasks);
-        break;
-      case 'undo_last':
-        result = executeUndoLast(deps);
-        break;
-      case 'read_file':
-        result = executeReadFile(currentFile, args);
-        break;
-      case 'read_all_files':
-        result = executeReadAllFiles(deps.getAllFiles(), args);
-        break;
-      case 'grep_search':
-        result = executeGrepSearch(currentFile, deps.getAllFiles(), args);
-        break;
-      case 'diff_check':
-        result = executeDiffCheck(currentContent, args);
-        break;
-      case 'print_safe_validator':
-        result = executePrintSafeValidator(currentContent, args);
-        break;
-      case 'html_validation':
-        result = executeHtmlValidation(currentContent, args);
-        break;
-      case 'load_reference_template':
-        result = await executeLoadReferenceTemplate(args);
-        break;
-      case 'modify_code':
-        result = executeModifyCode(currentContent, args);
-        break;
-      case 'insert_content':
-        result = executeInsertContent(currentContent, args);
-        break;
-      default:
-        result = { success: false, output: `Unknown tool: ${resolvedToolName}` };
-    }
+    const context = toToolContext(deps);
+    const result = await tool.call(args, context);
 
+    // 如果工具返回了 updatedContent，应用到文件
     if (result.success && typeof result.updatedContent === 'string') {
       if (result.updatedContent === currentFile.content) {
-        result = { success: false, output: 'No changes applied (content identical).' };
-      } else {
-        debugLog('toolExecutor.write', {
-          tool: resolvedToolName,
-          beforeChars: currentFile.content.length,
-          afterChars: result.updatedContent.length,
-        });
-        deps.updateFileContent(result.updatedContent, description);
+        return { success: false, output: 'No changes applied (content identical).' };
       }
+      debugLog('toolExecutor.write', {
+        tool: resolved,
+        beforeChars: currentFile.content.length,
+        afterChars: result.updatedContent.length,
+      });
+      deps.updateFileContent(result.updatedContent, description);
     }
 
     logToolResult({
-      action: resolvedToolName,
+      action: resolved,
       description,
       status: result.success ? 'success' : 'error',
       details: result.output,
       args,
     });
 
-    return { success: result.success, output: result.output };
+    // Build structured execution result
+    const executionResult: ToolExecutionResult = {
+      success: result.success,
+      output: result.output,
+      artifacts: {
+        ...(result.artifacts || {}),
+        ...(beforeSnapshotContent !== undefined ? { beforeSnapshotContent: beforeSnapshotContent.slice(0, 500) } : {}),
+      },
+      stateDelta: result.stateDelta,
+      followupHints: result.followupHints,
+    };
+
+    return executionResult;
   } catch (e: any) {
     const errorText = `System Error during execution: ${e?.message || 'Unknown error'}`;
     logToolResult({
-      action: resolvedToolName,
+      action: resolved,
       description,
       status: 'error',
       details: errorText,

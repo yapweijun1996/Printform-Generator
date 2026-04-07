@@ -50,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
 }) => {
   return (
-    <div style={{ width }} className="flex-none flex flex-col bg-white border-r border-erp-200 z-20 shadow-xl">
+    <div style={{ width }} className="flex-none flex flex-col bg-white border-l border-erp-200 z-20 shadow-xl">
       {/* Sidebar Tabs */}
       <div className="flex-none flex border-b border-erp-200 bg-erp-50">
         <button

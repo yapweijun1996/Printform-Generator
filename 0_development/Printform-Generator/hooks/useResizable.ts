@@ -13,7 +13,7 @@ export const useResizable = (initialWidth: number, minWidth: number, maxWidth: n
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizing) {
-        const newWidth = Math.max(minWidth, Math.min(maxWidth, e.clientX));
+        const newWidth = Math.max(minWidth, Math.min(maxWidth, window.innerWidth - e.clientX));
         setWidth(newWidth);
       }
     };

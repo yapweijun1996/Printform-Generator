@@ -71,163 +71,37 @@ Therefore:
 - The root wrapper MUST be: <div class="printform" style="width:${'${pageWidth}'}; min-height:${'${pageHeight}'}; margin:0 auto; box-sizing:border-box; padding:0; background:white; ...">
 - Do NOT emulate margins by adding padding on the root wrapper. Margins come from a 3-col "page frame" table.
 
-### SOP: SECTION-AS-PAGE-FRAME TABLE (MANDATORY - CRITICAL)
-**CRITICAL RULE**: Each PrintForm.js section (.pheader, .pdocinfo, .prowheader, .prowitem, .pfooter_pagenum) 
-MUST BE a standalone 3-column page-frame table. The section class goes on the outer table itself.
+### SOP: PRINTFORM.JS SECTION STRUCTURE (IMPORTANT)
+PrintForm.js detects sections by **class name only** — it does NOT care if the element is a \`<div>\` or \`<table>\`.
+Both patterns below are valid:
 
-**DO NOT create a separate wrapper "page frame" table around sections.**
-
----
-
-**WRONG PATTERN** ❌ (DO NOT DO THIS):
+**Pattern A: Table-based (recommended for strict ERP alignment)**
 \`\`\`html
-<!-- ❌ WRONG: Outer wrapper table with sections inside -->
-<table style="width:100%; table-layout:fixed;">
-  <colgroup>
-    <col style="width:15px">
-    <col style="width:auto">
-    <col style="width:15px">
-  </colgroup>
+<table class="pheader" cellpadding="0" cellspacing="0" border="0" style="width:100%; table-layout:fixed;">
   <tr>
-    <td></td>
-    <td>
-      <!-- ❌ WRONG: pheader does NOT have 15px/auto/15px -->
-      <table class="pheader" style="width:100%; table-layout:fixed;">
-        <colgroup>
-          <col style="width:50%">
-          <col style="width:50%">
-        </colgroup>
-        <tr>
-          <td>Company Info</td>
-          <td>Document Info</td>
-        </tr>
-      </table>
+    <td style="width:15px"></td>
+    <td style="width:inherit">
+      <!-- content here -->
     </td>
-    <td></td>
+    <td style="width:15px"></td>
   </tr>
 </table>
 \`\`\`
 
----
-
-**CORRECT PATTERN** ✅ (ALWAYS DO THIS):
+**Pattern B: Div-based (simpler, also works)**
 \`\`\`html
-<!-- ✅ CORRECT: pheader IS the page-frame table -->
-<table class="pheader" cellpadding="0" cellspacing="0" border="0" 
-      style="width:100%; table-layout:fixed;">
-  <colgroup>
-    <col style="width:15px">   <!-- left margin -->
-    <col style="width:auto">    <!-- content area -->
-    <col style="width:15px">    <!-- right margin -->
-  </colgroup>
-  <tr>
-    <td style="box-sizing:border-box;"></td>
-    <td style="box-sizing:border-box; vertical-align:top;">
-      <!-- Put your actual content table HERE -->
-      <table cellpadding="0" cellspacing="0" border="0" 
-            style="width:100%; table-layout:fixed;">
-        <colgroup>
-          <col style="width:50%">
-          <col style="width:50%">
-        </colgroup>
-        <tr>
-          <td style="padding:5px;">Company Info</td>
-          <td style="padding:5px;">Document Info</td>
-        </tr>
-      </table>
-    </td>
-    <td style="box-sizing:border-box;"></td>
-  </tr>
-</table>
-
-<!-- ✅ CORRECT: pdocinfo IS the page-frame table -->
-<table class="pdocinfo" cellpadding="0" cellspacing="0" border="0" 
-      style="width:100%; table-layout:fixed;">
-  <colgroup>
-    <col style="width:15px">
-    <col style="width:auto">
-    <col style="width:15px">
-  </colgroup>
-  <tr>
-    <td></td>
-    <td>
-      <table cellpadding="0" cellspacing="0" border="0" 
-            style="width:100%; table-layout:fixed;">
-        <colgroup>
-          <col style="width:48%">
-          <col style="width:4%">
-          <col style="width:48%">
-        </colgroup>
-        <tr>
-          <td>Shipping Address</td>
-          <td></td>
-          <td>Invoice Address</td>
-        </tr>
-      </table>
-    </td>
-    <td></td>
-  </tr>
-</table>
-
-<!-- ✅ CORRECT: prowheader IS the page-frame table -->
-<table class="prowheader" cellpadding="0" cellspacing="0" border="0" 
-      style="width:100%; table-layout:fixed;">
-  <colgroup>
-    <col style="width:15px">
-    <col style="width:auto">
-    <col style="width:15px">
-  </colgroup>
-  <tr>
-    <td></td>
-    <td>
-      <table cellpadding="0" cellspacing="0" border="0" 
-            style="width:100%; table-layout:fixed;">
-        <colgroup>
-          <col style="width:15%">
-          <col style="width:55%">
-          <col style="width:10%">
-          <col style="width:10%">
-          <col style="width:10%">
-        </colgroup>
-        <tr style="background:#003366; color:white;">
-          <td style="padding:5px;">Item #</td>
-          <td style="padding:5px;">Description</td>
-          <td style="padding:5px;">Qty</td>
-          <td style="padding:5px;">Price</td>
-          <td style="padding:5px;">Total</td>
-        </tr>
-      </table>
-    </td>
-    <td></td>
-  </tr>
-</table>
-
-<!-- ✅ CORRECT: pfooter_pagenum MUST be a table, NOT a div -->
-<table class="pfooter_pagenum" cellpadding="0" cellspacing="0" border="0" 
-      style="width:100%; table-layout:fixed;">
-  <colgroup>
-    <col style="width:15px">
-    <col style="width:auto">
-    <col style="width:15px">
-  </colgroup>
-  <tr>
-    <td></td>
-    <td style="text-align:center; padding:10px 0; font-size:8pt;">
-      Page <span data-page-number></span> of <span data-page-total></span>
-    </td>
-    <td></td>
-  </tr>
-</table>
+<div class="pheader" style="padding:0 15px;">
+  <!-- content here -->
+</div>
 \`\`\`
 
----
-
-**KEY RULES** (MEMORIZE):
-1. The section class (.pheader, .pdocinfo, .prowheader, .prowitem, .pfooter_pagenum) MUST be on the OUTER table.
-2. The OUTER table MUST have <colgroup> with EXACTLY: 15px / auto / 15px.
-3. The actual content layout table goes INSIDE the middle <td>.
-4. NEVER create a separate wrapper "page frame" table around sections.
-5. pfooter_pagenum MUST be a <table>, NEVER a <div>.
+**RULES** (MEMORIZE):
+1. The section class (.pheader, .pdocinfo, .prowheader, .prowitem, .pfooter_pagenum) MUST be on the **outermost** element of that section.
+2. Each .prowitem MUST be a **separate** element (one row per element). Do NOT put multiple rows inside one prowitem.
+3. If using a 3-col page-frame table for margins, use \`width:15px / width:inherit / width:15px\` (not \`auto\`).
+4. NEVER wrap ALL sections inside a single outer table — each section must be a direct child of \`.printform\`.
+5. \`data-repeat-docinfo\` defaults to \`"y"\` — set to \`"n"\` explicitly if you do NOT want pdocinfo to repeat.
+6. Keep section heights small — if pheader+pdocinfo+prowheader take &gt;50% of page height, items won't fit.
 
 ### WORK DISCIPLINE (FULL AUTO)
 - Before making ANY change, inspect the CURRENT FILE CONTEXT and the CURRENT PLAN STATUS.
@@ -267,15 +141,15 @@ To preserve background colors in print/PDF export (Chrome/Firefox), ensure:
    - Do NOT put multiple item rows inside a single shared line-items table.
    - If you need a header, use a separate table (e.g. \`class="rowitem-header"\`).
 
-2. **COLGROUP IS MANDATORY**:
-   - **NEVER** set \`width\` on \`<td>\` tags. 
-   - You **MUST** use \`<colgroup>\` to define column widths.
-   - This ensures strict alignment across rows, which is critical for ERP forms.
+2. **COLUMN WIDTHS**:
+   - Prefer \`<colgroup>\` for column widths when using content tables.
+   - \`<td style="width:...">\` is also acceptable (used in PrintForm.js reference templates).
+   - Column widths in prowheader and prowitem MUST match for proper alignment.
 
 3. **CELL STRUCTURE**:
    - Every \`<td>\` MUST include \`box-sizing: border-box;\` in its style. 
 
-4. **NO DIVS FOR LAYOUT**: **DO NOT** use \`<div>\` tags for structure (columns/rows). The ONLY allowed \`<div>\` is the main wrapper \`<div class="printform" style="...">...</div>\`.
+4. **DIVS ARE ALLOWED**: PrintForm.js sections can be \`<div>\` or \`<table>\`. The root MUST be \`<div class="printform" ...>\`. Section children can be either element type.
 
 ### WORKFLOW: TASK PLANNING & EXECUTION
 1. **Check the Plan**: Always look at the [CURRENT PLAN] provided in the context.
