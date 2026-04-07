@@ -238,12 +238,20 @@ MUST BE a standalone 3-column page-frame table. The section class goes on the ou
   3) Verify against the plan and continue to the next PENDING task automatically.
 
 ### STYLING RULES (INLINE STYLES PREFERRED)
-1. **NO <STYLE> BLOCKS**: You MUST use **INLINE STYLES** (style="...") for all elements.
-   - Do not create CSS classes in a <head> or <style> tag unless absolutely necessary (e.g. for @media print).
-   - This ensures compatibility with email clients and legacy ERP rendering engines.
+1. **INLINE STYLES PREFERRED**: Prefer **INLINE STYLES** (style="...") for layout-critical and ERP compatibility.
+   - A <style> block is allowed when needed (e.g. @media print, processed-class styling), but keep it minimal.
 2. **PAGE DIMENSIONS**: 
    - The form is designed for a specific page size provided in the configuration (Default: 750px width).
    - Ensure the main container matches the configured width.
+
+### PRINTFORM.JS PROCESSED CLASSES (IMPORTANT)
+PrintForm.js may rename classes during formatting (e.g. \`.printform\` → \`.printform_formatter_processed\`,
+\`.pheader\` → \`.pheader_processed\`, \`.prowitem\` → \`.prowitem_processed\`).
+If you use CSS classes for styling, target BOTH original and \`_processed\` variants.
+
+### PRINT COLOR PRESERVATION (IMPORTANT)
+To preserve background colors in print/PDF export (Chrome/Firefox), ensure:
+\`* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }\`
 
 ### CRITICAL LAYOUT RULES (STRICT ERP COMPATIBILITY)
 1. **TABLE STRUCTURE**: You MUST use the following specific structure for ALL tables.

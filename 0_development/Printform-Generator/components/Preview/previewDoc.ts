@@ -18,8 +18,10 @@ export const buildPreviewSrcDoc = ({
     <html>
     <head>
       <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
       <base href="${baseHref}" />
       <style>
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
         body { background-color: white; font-family: sans-serif; }
         @media screen { body { padding: 10px; display: flex; justify-content: center; } }

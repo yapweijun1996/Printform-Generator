@@ -3,6 +3,7 @@ import { validatePrintSafe } from '../../utils/printSafeValidator';
 import { validateStrictHtmlTables } from '../../utils/strictHtmlTableValidator';
 import type { ToolExecutionResult } from './toolTypes';
 import { findFuzzyMatch } from './editingExecutor';
+import { PRINTFORM_REFERENCE_TEMPLATES } from '../../constants';
 
 export const executeDiffCheck = (currentContent: string, args: any): ToolExecutionResult => {
   const operation = String(args?.operation || '');
@@ -86,41 +87,17 @@ export const executeLoadReferenceTemplate = async (args: any): Promise<ToolExecu
   const templateName = args?.template_name ? String(args.template_name).trim() : '';
   const maxChars = Number.isFinite(args?.max_chars) ? Number(args.max_chars) : 30000;
 
-  const availableTemplates = [
-    'index.html',
-    'demo001.html',
-    'demo002.html',
-    'delivery_order_test.html',
-    'index001.html',
-    'index002.html',
-    'index003.html',
-    'index004.html',
-    'index005.html',
-    'index006.html',
-    'index007.html',
-    'index008.html',
-    'index009.html',
-    'index010.html',
-    'index011.html',
-    'index012.html',
-    'index013.html',
-    'index014.html',
-    'index015.html',
-    'index016.html',
-    'index017.html',
-  ];
-
   if (!templateName) {
     return {
       success: true,
-      output: `Available reference templates:\n${availableTemplates.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\nUse load_reference_template with template_name to load a specific example.`,
+      output: `Available reference templates:\n${PRINTFORM_REFERENCE_TEMPLATES.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\nUse load_reference_template with template_name to load a specific example.`,
     };
   }
 
-  if (!availableTemplates.includes(templateName)) {
+  if (!PRINTFORM_REFERENCE_TEMPLATES.includes(templateName as any)) {
     return {
       success: false,
-      output: `Template "${templateName}" not found. Available templates: ${availableTemplates.join(', ')}`,
+      output: `Template "${templateName}" not found. Available templates: ${PRINTFORM_REFERENCE_TEMPLATES.join(', ')}`,
     };
   }
 

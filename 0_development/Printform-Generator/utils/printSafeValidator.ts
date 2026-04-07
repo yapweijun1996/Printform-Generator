@@ -134,7 +134,6 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
     }
   }
 
-
   // SOP: section-as-page-frame table (15px / auto / 15px). Best-effort regex validation.
   // CRITICAL: Every section MUST be a page-frame table, not just when requirePrintformjs is true.
   for (const cls of SECTION_CLASSES) {
@@ -161,7 +160,6 @@ export const validatePrintSafe = (html: string, config: PrintSafeValidatorConfig
       );
     }
   }
-
 
   // CRITICAL: If .prowheader exists, there MUST be at least one .prowitem
   const hasProwheader = /class=["'][^"']*\bprowheader\b[^"']*["']/i.test(text);

@@ -2,6 +2,11 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { AgentTask, Message, ProjectFile } from '../../types';
 import type { GeminiService } from '../../services/geminiService';
 
+export interface AutoLoopGuardState {
+  noToolStreak: number;
+  lastNoToolResponseKey: string;
+}
+
 export interface ConversationHandlerDependencies {
   geminiServiceRef: MutableRefObject<GeminiService | null>;
   getActiveFile: () => ProjectFile;
@@ -25,4 +30,5 @@ export interface ConversationHandlerDependencies {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   setBotStatus: (status: string | undefined) => void;
+  autoLoopGuardRef: MutableRefObject<AutoLoopGuardState>;
 }

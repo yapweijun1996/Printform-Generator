@@ -178,6 +178,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <label className="flex items-start gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
+                checked={Boolean(localSettings.semanticRagEnabled)}
+                onChange={(e) => setLocalSettings({ ...localSettings, semanticRagEnabled: e.target.checked })}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-erp-700">Semantic RAG (Embeddings)</div>
+                <div className="text-xs text-erp-500 mt-0.5">
+                  启用后：会使用 Gemini Embeddings 从
+                  SOP/参考模板中检索最相关片段，作为上下文输入给模型（更稳、更少胡写）。
+                </div>
+                <div className="mt-2">
+                  <label className="block text-xs font-semibold text-erp-600 mb-1">Top-K Snippets</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={8}
+                    step={1}
+                    value={Number.isFinite(localSettings.semanticRagTopK) ? localSettings.semanticRagTopK : 4}
+                    onChange={(e) => {
+                      const next = Number.parseInt(e.target.value, 10);
+                      setLocalSettings({
+                        ...localSettings,
+                        semanticRagTopK: Number.isFinite(next) ? Math.max(1, Math.min(8, next)) : 4,
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-erp-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-erp-800 font-mono"
+                    placeholder="4"
+                    disabled={!localSettings.semanticRagEnabled}
+                  />
+                </div>
+              </div>
+            </label>
+            <div className="h-4" />
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
                 checked={Boolean(localSettings.strictPreviewGate)}
                 onChange={(e) => setLocalSettings({ ...localSettings, strictPreviewGate: e.target.checked })}
                 className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"

@@ -81,6 +81,8 @@ export interface UserSettings {
   minRowItemsForPaginationTest: number;
   autoApplyDiff: boolean;
   strictPreviewGate: boolean;
+  semanticRagEnabled: boolean;
+  semanticRagTopK: number;
 }
 
 export type ViewMode = 'preview' | 'code' | 'split';

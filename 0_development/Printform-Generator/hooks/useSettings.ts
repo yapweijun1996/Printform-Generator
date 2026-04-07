@@ -18,13 +18,18 @@ export const useSettings = () => {
           activeTools: parsed.activeTools,
           pageWidth: parsed.pageWidth || '750px',
           pageHeight: parsed.pageHeight || '1050px',
-          autoApplyDiff: Boolean(parsed.autoApplyDiff),
+          autoApplyDiff: typeof parsed.autoApplyDiff === 'boolean' ? parsed.autoApplyDiff : true,
           strictPreviewGate: Boolean(parsed.strictPreviewGate),
           minRowItemsForPaginationTest:
             typeof parsed.minRowItemsForPaginationTest === 'number' &&
-              Number.isFinite(parsed.minRowItemsForPaginationTest)
+            Number.isFinite(parsed.minRowItemsForPaginationTest)
               ? parsed.minRowItemsForPaginationTest
               : 20,
+          semanticRagEnabled: typeof parsed.semanticRagEnabled === 'boolean' ? parsed.semanticRagEnabled : true,
+          semanticRagTopK:
+            typeof parsed.semanticRagTopK === 'number' && Number.isFinite(parsed.semanticRagTopK)
+              ? Math.max(1, Math.min(8, parsed.semanticRagTopK))
+              : 4,
         };
       }
     } catch (e) {
@@ -36,9 +41,11 @@ export const useSettings = () => {
       activeTools: IMPLEMENTED_TOOL_IDS,
       pageWidth: '750px',
       pageHeight: '1050px',
-      autoApplyDiff: false,
+      autoApplyDiff: true,
       strictPreviewGate: false,
       minRowItemsForPaginationTest: 20,
+      semanticRagEnabled: true,
+      semanticRagTopK: 4,
     };
   });
 

@@ -31,6 +31,12 @@ describe('validatePrintSafe (SOP page-frame sections)', () => {
           </colgroup>
           <tr><td></td><td>content</td><td></td></tr>
         </table>
+        <table class="prowitem" cellpadding="0" cellspacing="0" border="0" style="width:750px;table-layout:fixed;">
+          <colgroup>
+            <col style="width:15px"><col style="width:auto"><col style="width:15px">
+          </colgroup>
+          <tr><td></td><td>content</td><td></td></tr>
+        </table>
         <table class="pfooter_pagenum" cellpadding="0" cellspacing="0" border="0" style="width:750px;table-layout:fixed;">
           <colgroup>
             <col style="width:15px"><col style="width:auto"><col style="width:15px">

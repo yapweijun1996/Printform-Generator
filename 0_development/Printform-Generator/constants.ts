@@ -149,6 +149,30 @@ export const IMPLEMENTED_TOOL_IDS = AVAILABLE_TOOLS.flatMap((category) =>
   category.items.filter((tool) => tool.implemented).map((tool) => tool.id),
 );
 
+export const PRINTFORM_REFERENCE_TEMPLATES = [
+  'index.html',
+  'demo001.html',
+  'demo002.html',
+  'delivery_order_test.html',
+  'index001.html',
+  'index002.html',
+  'index003.html',
+  'index004.html',
+  'index005.html',
+  'index006.html',
+  'index007.html',
+  'index008.html',
+  'index009.html',
+  'index010.html',
+  'index011.html',
+  'index012.html',
+  'index013.html',
+  'index014.html',
+  'index015.html',
+  'index016.html',
+  'index017.html',
+] as const;
+
 export const GEMINI_MODELS = [
   { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Recommended)' },
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Fast)' },
@@ -157,3 +181,5 @@ export const GEMINI_MODELS = [
 ];
 
 export const DEFAULT_GEMINI_MODEL_ID = GEMINI_MODELS[0]?.id || 'gemini-3-pro-preview';
+
+export const DEFAULT_EMBEDDING_MODEL_ID = 'text-embedding-004';

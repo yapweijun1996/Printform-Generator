@@ -44,6 +44,7 @@ export const useAgentChat = ({
   const previewVersionRef = useRef(0);
   const previewErrorCountRef = useRef(0);
   const previewWarnedRef = useRef(false);
+  const autoLoopGuardRef = useRef({ noToolStreak: 0, lastNoToolResponseKey: '' });
 
   // 同步任务状态到 ref
   useEffect(() => {
@@ -58,8 +59,20 @@ export const useAgentChat = ({
       settings.activeTools,
       settings.pageWidth,
       settings.pageHeight,
+      {
+        semanticRagEnabled: Boolean(settings.semanticRagEnabled),
+        semanticRagTopK: Number.isFinite(settings.semanticRagTopK) ? settings.semanticRagTopK : 4,
+      },
     );
-  }, [settings.apiKey, settings.model, settings.activeTools, settings.pageWidth, settings.pageHeight]);
+  }, [
+    settings.apiKey,
+    settings.model,
+    settings.activeTools,
+    settings.pageWidth,
+    settings.pageHeight,
+    settings.semanticRagEnabled,
+    settings.semanticRagTopK,
+  ]);
 
   // 更新最后一条机器人消息的状态文本
   const setBotStatus = useCallback((status: string | undefined) => {
@@ -183,6 +196,7 @@ export const useAgentChat = ({
         setMessages,
         setIsLoading,
         setBotStatus,
+        autoLoopGuardRef,
       });
     },
     [

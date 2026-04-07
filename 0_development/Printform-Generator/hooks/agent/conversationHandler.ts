@@ -5,6 +5,23 @@ import { handleToolCallFlow } from './toolCallFlow';
 import { buildAutoGroundingContext } from './autoGrounding';
 import { debugLog } from '../../utils/debug';
 
+const normalizeLoopKey = (s: string) =>
+  String(s || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 220);
+
+const looksLikeToolNarrationWithoutCall = (s: string) => {
+  const t = normalizeLoopKey(s).toLowerCase();
+  return (
+    /wait,?\s*i('|’)ll\s+(use|just)\s+`?(read_file|read_all_files|grep_search|modify_code|insert_content|manage_plan|diff_check|undo_last)/i.test(
+      t,
+    ) ||
+    /i('|’)ll\s+use\s+`?read_file/i.test(t) ||
+    /i('|’)ll\s+just\s+rewrite/i.test(t)
+  );
+};
+
 export const processConversationTurn = async (
   inputPayload: string | any[],
   image: { mimeType: string; data: string } | undefined,
@@ -24,6 +41,7 @@ export const processConversationTurn = async (
     setMessages,
     setIsLoading,
     setBotStatus,
+    autoLoopGuardRef,
   } = deps;
 
   if (recursionDepth > 100) {
@@ -50,6 +68,12 @@ export const processConversationTurn = async (
     return;
   }
 
+  // Reset loop guard on new user turn.
+  if (recursionDepth === 0) {
+    autoLoopGuardRef.current.noToolStreak = 0;
+    autoLoopGuardRef.current.lastNoToolResponseKey = '';
+  }
+
   const service = geminiServiceRef.current;
   if (!service) throw new Error('Gemini service not initialized');
 
@@ -58,7 +82,8 @@ export const processConversationTurn = async (
     const beforeVersion = getPreviewSnapshotVersion();
     const allowHighRes =
       (activeTools || []).includes('visual_review') || (activeTools || []).includes('image_analysis');
-    requestPreviewSnapshot(allowHighRes ? { scale: 1.2, jpegQuality: 0.75 } : undefined);
+    // Keep preflight payload small; request higher-res via the visual_review tool when needed.
+    requestPreviewSnapshot(allowHighRes ? { scale: 0.8, jpegQuality: 0.6 } : undefined);
     const ok = await waitForNextPreviewSnapshot(1500, beforeVersion);
     const hasAnySnapshot = Boolean(previewImageRef.current);
 
@@ -198,9 +223,66 @@ export const processConversationTurn = async (
 
       const hasPending = (tasksRef.current || []).some((t) => t.status === 'pending');
       if (hasPending) {
+        const key = normalizeLoopKey(fullResponseText);
+        const isRepeating = key && key === autoLoopGuardRef.current.lastNoToolResponseKey;
+        const looksLikeNarration = looksLikeToolNarrationWithoutCall(fullResponseText);
+        autoLoopGuardRef.current.noToolStreak += isRepeating || looksLikeNarration || !key ? 1 : 1;
+        autoLoopGuardRef.current.lastNoToolResponseKey = key;
+
+        if (autoLoopGuardRef.current.noToolStreak >= 3) {
+          const continueId = `loop-continue-${Date.now()}`;
+          setBotStatus(undefined);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: continueId,
+              sender: Sender.Bot,
+              text: '⚠️ 检测到可能的自动循环：当前有未完成任务，但模型连续多次未实际发出工具调用（只在文字里说要用 read_file/rewite）。为避免请求风暴，我已暂停自动推进。',
+              timestamp: Date.now(),
+              collapsible: {
+                title: 'Loop Guard（点击展开）',
+                content: `noToolStreak=${autoLoopGuardRef.current.noToolStreak}\nlastNoToolKey=${key}\nlooksLikeNarration=${looksLikeNarration}`,
+                defaultOpen: false,
+              },
+              actions: [
+                {
+                  label: 'Retry (force tool call)',
+                  variant: 'primary',
+                  onAction: async () => {
+                    setMessages((prev) => prev.map((m) => (m.id === continueId ? { ...m, actions: [] } : m)));
+                    await processConversationTurn(
+                      'You MUST execute the next tool call now using function calling. Do NOT narrate "I will use read_file". If you need context, CALL read_file.',
+                      undefined,
+                      0,
+                      deps,
+                    );
+                  },
+                },
+                {
+                  label: 'Continue once',
+                  variant: 'secondary',
+                  onAction: async () => {
+                    setMessages((prev) => prev.map((m) => (m.id === continueId ? { ...m, actions: [] } : m)));
+                    await processConversationTurn(
+                      'Continue with the next pending task in the plan.',
+                      undefined,
+                      0,
+                      deps,
+                    );
+                  },
+                },
+              ],
+            },
+          ]);
+          setIsLoading(false);
+          return;
+        }
+
         setBotStatus(undefined);
         await processConversationTurn(
-          'Continue with the next pending task in the plan.',
+          looksLikeNarration
+            ? 'Execute the next tool call now using function calling. Do NOT narrate. If you need context, CALL read_file and proceed.'
+            : 'Continue with the next pending task in the plan.',
           undefined,
           recursionDepth + 1,
           deps,

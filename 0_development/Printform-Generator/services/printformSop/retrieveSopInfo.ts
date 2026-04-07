@@ -99,6 +99,24 @@ const inferQueryTerms = (intentQuery: string): string[] => {
     'table-layout:fixed',
   ]);
   addIf(/inline\s*style|内联样式|不要\\s*style\\s*block|no\\s*<style>/.test(q), ['INLINE STYLES', 'NO <STYLE>']);
+  addIf(/processed|_processed|formatter_processed/.test(q), [
+    '_processed',
+    '.printform_formatter_processed',
+    '.pheader_processed',
+    '.prowitem_processed',
+  ]);
+  addIf(/print\s*color|背景色|颜色.*打印|print-color-adjust|-webkit-print-color-adjust/.test(q), [
+    'print-color-adjust: exact',
+    '-webkit-print-color-adjust: exact',
+    '背景色',
+    '打印',
+  ]);
+  addIf(/viewport|移动端|mobile|text-size-adjust|字体缩放/.test(q), [
+    '<meta name="viewport"',
+    'viewport-fit=cover',
+    'text-size-adjust',
+    '-webkit-text-size-adjust',
+  ]);
 
   // Generation strategy: force pagination to up to 3 pages (70~120 .prowitem)
   addIf(wantsGenerate || wantsTemplate || wantsPaginationTest, [
@@ -154,6 +172,12 @@ const inferQueryTerms = (intentQuery: string): string[] => {
     'data-show-physical-page-number',
   ]);
   addIf(/分页|拆页|pagination|formatall|format\(/.test(q), ['pagination', 'PrintForm.formatAll', '拆分成多页']);
+  addIf(/n-up|nup|2-up|一张两页|两页一张|physical\s*page/.test(q), [
+    'data-n-up',
+    'data-show-physical-page-number',
+    'data-physical-page-number',
+    'data-physical-page-total',
+  ]);
   addIf(/纸张|尺寸|宽|高|papersize|page\s*(width|height)/.test(q), [
     'data-papersize-width',
     'data-papersize-height',
@@ -167,6 +191,16 @@ const inferQueryTerms = (intentQuery: string): string[] => {
     'data-insert-dummy-row-while-format-table',
   ]);
   addIf(/行项目|item|prowitem/.test(q), ['.prowitem', '一个 item 一个 table', '70~120']);
+  addIf(/page\s*break|换页|强制换页|tb_page_break_before/.test(q), [
+    'tb_page_break_before',
+    'div page break',
+    'data-div-page-break-before-class-append',
+  ]);
+  addIf(/without_prowheader|tb_without_rowheader|不要表头|不显示表头/.test(q), [
+    'without_prowheader',
+    'tb_without_rowheader',
+    'data-repeat-rowheader',
+  ]);
   addIf(/ptac/.test(q), ['data-repeat-ptac-rowheader', 'data-insert-ptac-dummy-row-items', '.prowitem', '.prowheader']);
   addIf(/paddt/.test(q), [
     'data-repeat-paddt',
@@ -199,6 +233,12 @@ const defaultFallbackTerms = [
   '.pfooter_logo',
   '.pfooter_pagenum',
   'data-page-number',
+  'print-color-adjust: exact',
+  '.printform_formatter_processed',
+  '_processed',
+  'tb_page_break_before',
+  'without_prowheader',
+  'data-n-up',
   '常见踩坑清单',
 ];
 

@@ -25,6 +25,7 @@ import { ToolMode } from './gemini/types';
 import { buildPrintformSopRagBlock } from './printformSop';
 import { buildAutoPrintSafeBlock } from './agentAugmenters/autoPrintSafe';
 import { buildImageNote, hasAnyImages, pushLabeledImageParts, type GeminiImageInputs } from './gemini/imageContext';
+import { SemanticRag } from './rag';
 
 /**
  * Gemini AI 服务类
@@ -37,9 +38,11 @@ export class GeminiService {
   private activeTools: string[];
   private pageWidth: string;
   private pageHeight: string;
-  // Use JSON-directive tool mode by default to avoid function-call turn ordering issues.
-  // The model is instructed to output <TOOL_CALL>{...}</TOOL_CALL> blocks that we parse and execute locally.
-  private toolMode: ToolMode = 'json_directive';
+  // Prefer native function calling; fallback to JSON-directive when the model/tooling doesn't support it.
+  private toolMode: ToolMode = 'function_calling';
+  private semanticRagEnabled: boolean;
+  private semanticRagTopK: number;
+  private semanticRag: SemanticRag | null = null;
 
   constructor(
     apiKey: string,
@@ -47,12 +50,21 @@ export class GeminiService {
     activeTools: string[] = [],
     pageWidth: string = '750px',
     pageHeight: string = '1050px',
+    opts?: { semanticRagEnabled?: boolean; semanticRagTopK?: number },
   ) {
     this.apiKey = apiKey;
     this.modelName = modelName;
     this.activeTools = activeTools;
     this.pageWidth = pageWidth;
     this.pageHeight = pageHeight;
+    this.semanticRagEnabled = Boolean(opts?.semanticRagEnabled);
+    this.semanticRagTopK = Number.isFinite(opts?.semanticRagTopK)
+      ? Math.max(1, Math.min(8, Number(opts?.semanticRagTopK)))
+      : 4;
+
+    if (this.semanticRagEnabled && this.apiKey) {
+      this.semanticRag = new SemanticRag({ apiKey: this.apiKey });
+    }
 
     if (this.apiKey) {
       this.initializeChat();
@@ -148,6 +160,12 @@ export class GeminiService {
     try {
       let messageParts: any[] = [];
 
+      const clip = (s: string, max: number) => {
+        const text = String(s || '');
+        if (text.length <= max) return text;
+        return text.slice(0, Math.max(0, max)) + '\n... (truncated)\n';
+      };
+
       // 构建任务计划上下文
       let planContext = '';
       if (currentTasks.length > 0) {
@@ -161,6 +179,10 @@ export class GeminiService {
         }
         planContext += '\nInstruction: If there are PENDING tasks, proceed to the next one immediately.\n';
       }
+      const planContextForModel = planContext ? clip(planContext, 2200) : '';
+
+      // Keep model context bounded to avoid request-size failures.
+      const currentFileContextForModel = clip(currentFileContext, 14000);
 
       const hasImages = hasAnyImages(images);
       const imageNote = buildImageNote(images);
@@ -168,6 +190,10 @@ export class GeminiService {
       // 检查消息类型:新用户请求 或 函数响应
       if (typeof message === 'string') {
         const sopRagBlock = buildPrintformSopRagBlock(message);
+        const semanticRagBlock = this.semanticRagEnabled
+          ? await this.semanticRag?.buildRagBlock({ query: message, topK: this.semanticRagTopK })
+          : '';
+        const groundingBlock = (semanticRagBlock || sopRagBlock).trim();
         const autoPrintSafeBlock = buildAutoPrintSafeBlock({
           currentFileContext,
           pageWidth: this.pageWidth,
@@ -177,13 +203,13 @@ export class GeminiService {
         // --- 用户请求 ---
         const promptWithContext = `
 [RAG CONTEXT START]
-${[sopRagBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
+${[groundingBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
 [RAG CONTEXT END]
 
 [CURRENT FILE CONTEXT START]
-${currentFileContext}
+${currentFileContextForModel}
 [CURRENT FILE CONTEXT END]
-${planContext}
+${planContextForModel}
 
 Preflight protocol (MANDATORY):
 0) Review [AUTO_GROUNDING] (if present) for template/validator hints.
@@ -203,11 +229,11 @@ Preflight protocol (MANDATORY):
           const visualPrompt = !message.trim()
             ? `
 [RAG CONTEXT START]
-${[sopRagBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
+${[groundingBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
 [RAG CONTEXT END]
 
 [CURRENT FILE CONTEXT START]
-${currentFileContext}
+${currentFileContextForModel}
 [CURRENT FILE CONTEXT END]
 
 User Request: Analyze the attached images and reproduce the reference design using STRICT HTML Tables with <colgroup> logic. Use INLINE STYLES.
@@ -240,9 +266,9 @@ ${[sopRagBlock, autoPrintSafeBlock].filter(Boolean).join('\n\n')}
 [RAG CONTEXT END]
 
 [CURRENT FILE CONTEXT START]
-${currentFileContext}
+${currentFileContextForModel}
 [CURRENT FILE CONTEXT END]
-${planContext}
+${planContextForModel}
 
 ToolResult (${name}): success=${success}
 ${result}
