@@ -105,20 +105,20 @@ export const managePlanTool: Tool = {
         i === idx ? { ...t, status: 'completed' as const } : t,
       );
 
-      // Auto-start next pending task if no in_progress exists
-      const hasInProgress = updated.some((t) => t.status === 'in_progress');
-      if (!hasInProgress) {
-        const nextPendingIdx = updated.findIndex((t) => t.status === 'pending' && !(t.blockedBy && t.blockedBy.length > 0));
-        if (nextPendingIdx >= 0) {
-          updated[nextPendingIdx] = { ...updated[nextPendingIdx], status: 'in_progress' as const };
-        }
-      }
+      // NOTE: No implicit auto-start of next task.
+      // The model must explicitly call mark_in_progress to start the next task.
+      // This ensures plan advancement is always explicit via manage_plan.
 
       updateTasks(updated);
+
+      const nextPending = updated.find((t) => t.status === 'pending' && !(t.blockedBy && t.blockedBy.length > 0));
       return {
         success: true,
-        output: `Marked task #${idx + 1} as completed.`,
+        output: `Marked task #${idx + 1} as completed.${nextPending ? ` Next pending task: "${nextPending.description.slice(0, 80)}". Use mark_in_progress to start it.` : ' No more pending tasks.'}`,
         stateDelta: { taskCompleted: currentTasks[idx].id },
+        followupHints: nextPending
+          ? [`Next pending task available: ${nextPending.id}. Call manage_plan with action=mark_in_progress to start it.`]
+          : ['All tasks completed.'],
       };
     }
 

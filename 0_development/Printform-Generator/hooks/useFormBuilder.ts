@@ -30,7 +30,10 @@ export const useFormBuilder = () => {
   } = useFileProject();
 
   // 3. Agent & Chat State (Needs access to File & Settings)
-  const { messages, tasks, isLoading, sendMessage, setPreviewSnapshot, notifyPreviewSnapshotError } = useAgentChat({
+  const {
+    messages, tasks, isLoading, sendMessage, setPreviewSnapshot, notifyPreviewSnapshotError,
+    hasResumableSession, resumeSession, clearSession,
+  } = useAgentChat({
     settings,
     getActiveFile,
     getAllFiles,
@@ -46,6 +49,9 @@ export const useFormBuilder = () => {
     sendMessage,
     setPreviewSnapshot,
     notifyPreviewSnapshotError,
+    hasResumableSession,
+    resumeSession,
+    clearSession,
 
     // File System
     files,

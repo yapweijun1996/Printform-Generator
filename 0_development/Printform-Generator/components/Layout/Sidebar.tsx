@@ -24,6 +24,9 @@ interface SidebarProps {
   onRevert: (entry: FileHistory) => void;
   settings: UserSettings;
   onOpenSettings: () => void;
+  hasResumableSession?: boolean;
+  onResumeSession?: () => void;
+  onClearSession?: () => void;
 }
 
 /**
@@ -48,6 +51,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRevert,
   settings,
   onOpenSettings,
+  hasResumableSession,
+  onResumeSession,
+  onClearSession,
 }) => {
   return (
     <div style={{ width }} className="flex-none flex flex-col bg-white border-l border-erp-200 z-20 shadow-xl">
@@ -181,6 +187,25 @@ const Sidebar: React.FC<SidebarProps> = ({
           </svg>
         </button>
       </div>
+
+      {/* Session Resume Banner */}
+      {hasResumableSession && (
+        <div className="flex-none px-3 py-2 bg-blue-50 border-b border-blue-200 flex items-center gap-2">
+          <span className="text-xs text-blue-700 flex-1">Previous session found.</span>
+          <button
+            onClick={onResumeSession}
+            className="px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            Resume
+          </button>
+          <button
+            onClick={onClearSession}
+            className="px-2 py-1 text-xs font-medium bg-white text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Sidebar Content */}
       <div className="flex-1 overflow-hidden relative">

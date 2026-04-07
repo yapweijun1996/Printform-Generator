@@ -5,11 +5,19 @@ import { maybeHandleDiffConfirmation } from './diffConfirmation';
 import { validatePrintSafe } from '../../utils/printSafeValidator';
 import { debugLog } from '../../utils/debug';
 
+/**
+ * Tool Call Flow (v2)
+ *
+ * Changes from v1:
+ * - REMOVED: auto-advance plan on successful edit (now only manage_plan / goalEvaluator can advance)
+ * - ADDED: structured tool result via functionResponse
+ * - ADDED: artifacts/stateDelta/followupHints passthrough
+ */
 export const handleToolCallFlow = async (
   functionCallData: any,
   recursionDepth: number,
   deps: ConversationHandlerDependencies,
-  continueConversation: (nextInput: string | any[], depth: number) => Promise<void>,
+  continueConversation: (nextInput: string | any[]) => Promise<void>,
 ): Promise<void> => {
   const {
     getActiveFile,
@@ -41,6 +49,7 @@ export const handleToolCallFlow = async (
       args: functionCallData?.args,
     });
 
+    // ── visual_review: special handling ──
     if (functionCallData.name === 'visual_review') {
       const beforeVersion = deps.getPreviewSnapshotVersion();
       const timeoutMs = Number.isFinite(functionCallData.args?.timeout_ms)
@@ -93,26 +102,16 @@ export const handleToolCallFlow = async (
         currentVersion: deps.getPreviewSnapshotVersion(),
       });
 
-      const isTextToolCall = String(functionCallData.id || '').startsWith('text-tool-');
-      if (isTextToolCall) {
-        await continueConversation(
-          `ToolResult (${functionCallData.name}): success=${result.success}\n${result.output}\n\nContinue with the next pending task.`,
-          recursionDepth + 1,
-        );
-        return;
+      // Deposit actual tool result for session persistence
+      if (deps.lastToolResultRef) {
+        deps.lastToolResultRef.current = { success: result.success, output: result.output, toolName: 'visual_review' };
       }
 
-      const functionResponsePart = {
-        functionResponse: {
-          name: functionCallData.name,
-          id: functionCallData.id,
-          response: { result: result.output, success: result.success },
-        },
-      };
-      await continueConversation([functionResponsePart], recursionDepth + 1);
+      await sendStructuredResponse(functionCallData, result, continueConversation);
       return;
     }
 
+    // ── Standard tool execution ──
     const result = await executeToolCall(functionCallData.name, functionCallData.args, {
       getActiveFile,
       getAllFiles,
@@ -126,14 +125,26 @@ export const handleToolCallFlow = async (
       name: functionCallData?.name,
       success: result?.success,
       outputTail: String(result?.output || '').slice(-200),
+      hasStateDelta: Boolean(result?.stateDelta),
+      hasFollowupHints: Boolean(result?.followupHints?.length),
     });
 
+    // Deposit actual tool result for session persistence
+    if (deps.lastToolResultRef) {
+      deps.lastToolResultRef.current = {
+        success: result.success,
+        output: String(result.output || '').slice(0, 500),
+        toolName: String(functionCallData.name || ''),
+      };
+    }
+
+    // Refresh preview after destructive edits
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
       const before = deps.getPreviewSnapshotVersion();
       await waitForNextPreviewSnapshot(1400, before);
     }
 
-    // Post-edit hard gate: if validator finds ERRORs, block auto-advancing plan and ask model to fix.
+    // ── Post-edit hard gate: PrintSafe validation ──
     let postEditBlockMessage: string | null = null;
     let hasBlockingValidationErrors = false;
     if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
@@ -144,8 +155,6 @@ export const handleToolCallFlow = async (
         /3\s*-?\s*page|three\s*-?\s*page|70\s*~\s*120|70\s*-\s*120|prowitem|line\s*items/i.test(String(t.description)),
       );
       const issues = validatePrintSafe(currentContent, {
-        // Only enforce full PrintForm.js section strictness when the plan has finished,
-        // otherwise intermediate steps (e.g. header-only) would be blocked too early.
         requirePrintformjs: !hasPendingOrInProgress,
         requireThreePageTest: !hasPendingOrInProgress && requireThreePageTest,
         minProwitemCount: 20,
@@ -179,7 +188,7 @@ export const handleToolCallFlow = async (
           timestamp: Date.now(),
           collapsible: {
             title: 'Print-safe Validator（点击展开）',
-            content: postEditBlockMessage,
+            content: postEditBlockMessage!,
             defaultOpen: true,
           },
         },
@@ -196,7 +205,6 @@ export const handleToolCallFlow = async (
                 setMessages((prev) => prev.map((m) => (m.id === retryId ? { ...m, actions: [] } : m)));
                 await continueConversation(
                   `Validation failed after the last edit. Fix these issues now and do NOT proceed to the next task until there are no ERRORs.\n\n${postEditBlockMessage}`,
-                  recursionDepth + 1,
                 );
               },
             },
@@ -222,25 +230,11 @@ export const handleToolCallFlow = async (
       return;
     }
 
-    if (result.success && (functionCallData.name === 'modify_code' || functionCallData.name === 'insert_content')) {
-      const current = tasksRef.current || [];
-      const inProgressIdx = current.findIndex((t) => t.status === 'in_progress');
-      if (inProgressIdx >= 0) {
-        const nextPendingIdx = current.findIndex((t, i) => i > inProgressIdx && t.status === 'pending');
-        const updated = current.map((t, i) => {
-          if (i === inProgressIdx) return { ...t, status: 'completed' as const };
-          if (i === nextPendingIdx) return { ...t, status: 'in_progress' as const };
-          return t;
-        });
-        setTasks(updated);
-        tasksRef.current = updated;
-        debugLog('plan.autoAdvance', {
-          completedIndex: inProgressIdx,
-          nextInProgressIndex: nextPendingIdx,
-        });
-      }
-    }
+    // ── NOTE: No auto-advance here! ──
+    // Plan advancement is now controlled exclusively by manage_plan / goalEvaluator.
+    // The old implicit "modify_code success → auto-complete task" logic is removed.
 
+    // ── Update UI ──
     setMessages((prev) => {
       const lastIdx = prev.length - 1;
       const lastMsg = prev[lastIdx];
@@ -276,26 +270,11 @@ export const handleToolCallFlow = async (
 
     setBotStatus(undefined);
 
-    const isTextToolCall = String(functionCallData.id || '').startsWith('text-tool-');
-    if (isTextToolCall) {
-      await continueConversation(
-        `ToolResult (${functionCallData.name}): success=${result.success}\n${result.output}\n\nContinue with the next pending task.`,
-        recursionDepth + 1,
-      );
-      return;
-    }
-
-    const functionResponsePart = {
-      functionResponse: {
-        name: functionCallData.name,
-        id: functionCallData.id,
-        response: { result: result.output, success: result.success },
-      },
-    };
-
-    await continueConversation([functionResponsePart], recursionDepth + 1);
+    // ── Send structured response back to model ──
+    await sendStructuredResponse(functionCallData, result, continueConversation);
   };
 
+  // ── Diff confirmation gate ──
   const handled = await maybeHandleDiffConfirmation({
     functionCallData,
     recursionDepth,
@@ -313,4 +292,53 @@ export const handleToolCallFlow = async (
   if (handled) return;
 
   await runToolAndContinue();
+};
+
+/**
+ * Send structured functionResponse or text fallback to the model
+ */
+const sendStructuredResponse = async (
+  functionCallData: any,
+  result: { success: boolean; output: string; stateDelta?: Record<string, any>; followupHints?: string[] },
+  continueConversation: (nextInput: string | any[]) => Promise<void>,
+) => {
+  const isTextToolCall = String(functionCallData.id || '').startsWith('text-tool-');
+
+  if (isTextToolCall) {
+    // Text tool calls get text-based responses
+    const parts = [
+      `ToolResult (${functionCallData.name}): success=${result.success}`,
+      result.output,
+    ];
+    if (result.stateDelta) {
+      parts.push(`stateDelta: ${JSON.stringify(result.stateDelta)}`);
+    }
+    if (result.followupHints && result.followupHints.length > 0) {
+      parts.push(`followupHints: ${result.followupHints.join('; ')}`);
+    }
+    parts.push('Continue with the current task. Only advance the plan via manage_plan when the task is truly complete.');
+    await continueConversation(parts.join('\n'));
+    return;
+  }
+
+  // Structured functionResponse for native tool calls
+  const response: Record<string, any> = {
+    result: result.output,
+    success: result.success,
+  };
+  if (result.stateDelta) {
+    response.stateDelta = result.stateDelta;
+  }
+  if (result.followupHints && result.followupHints.length > 0) {
+    response.followupHints = result.followupHints;
+  }
+
+  const functionResponsePart = {
+    functionResponse: {
+      name: functionCallData.name,
+      id: functionCallData.id,
+      response,
+    },
+  };
+  await continueConversation([functionResponsePart]);
 };

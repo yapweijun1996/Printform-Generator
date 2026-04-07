@@ -315,8 +315,8 @@ export const processConversationTurn = async (
       id: functionCallData?.id,
       argsKeys: Object.keys(functionCallData?.args || {}),
     });
-    await handleToolCallFlow(functionCallData, recursionDepth, deps, async (nextInput, depth) => {
-      await processConversationTurn(nextInput, undefined, depth, deps);
+    await handleToolCallFlow(functionCallData, recursionDepth, deps, async (nextInput) => {
+      await processConversationTurn(nextInput, undefined, recursionDepth + 1, deps);
     });
   } catch (error: any) {
     console.error(error);

@@ -80,15 +80,18 @@ export const evaluateGoal = (params: GoalEvaluatorParams): GoalEvaluatorResult =
   const criteria = currentTask.acceptanceCriteria || [];
   if (criteria.length > 0) {
     const contentLower = fileContent.toLowerCase();
-    const descLower = (currentTask.description || '').toLowerCase();
 
     for (const criterion of criteria) {
       const criterionLower = criterion.toLowerCase();
 
-      // Heuristic: check if the criterion is likely addressed
-      // For structural criteria, check for keywords in the content
+      // Extract structural keywords and check if they appear in the file content.
+      // Only check file content — NOT task description, which would cause false positives
+      // (keywords in the criterion that are also in the description would always match).
       const structuralKeywords = extractKeywords(criterionLower);
-      const likelyMet = structuralKeywords.some((kw) => contentLower.includes(kw) || descLower.includes(kw));
+
+      // Require a majority of keywords to match, not just one
+      const matchCount = structuralKeywords.filter((kw) => contentLower.includes(kw)).length;
+      const likelyMet = structuralKeywords.length > 0 && matchCount >= Math.ceil(structuralKeywords.length * 0.6);
 
       if (!likelyMet) {
         gaps.push(`Acceptance criterion not met: "${criterion}"`);

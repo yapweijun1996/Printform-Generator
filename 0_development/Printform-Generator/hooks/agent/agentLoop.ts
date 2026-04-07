@@ -63,7 +63,15 @@ const initSession = async (
       restored = true;
       // Restore tasks into React state
       deps.setTasks(persisted.tasks);
-      debugLog('agentLoop.sessionRestore', { sessionId: persisted.sessionId, tasks: persisted.tasks.length });
+
+      // Restore file content from latest checkpoint
+      const latestCp = persisted.checkpoints[persisted.checkpoints.length - 1];
+      if (latestCp && latestCp.fileContent) {
+        deps.updateFileContent(latestCp.fileContent, `Restored from checkpoint ${latestCp.id}`);
+        debugLog('agentLoop.sessionRestore.checkpoint', { cpId: latestCp.id, chars: latestCp.fileContent.length });
+      }
+
+      debugLog('agentLoop.sessionRestore', { sessionId: persisted.sessionId, tasks: persisted.tasks.length, hasCheckpoint: Boolean(latestCp) });
     }
   }
 
@@ -215,7 +223,7 @@ const evaluateContinuation = (
   fullResponseText: string,
   deps: ConversationHandlerDependencies,
   session?: SessionState,
-): { shouldContinue: boolean; nextInput: string; interrupted: boolean } => {
+): { shouldContinue: boolean; nextInput: string; interrupted: boolean; updatedSession?: SessionState } => {
   const { tasksRef, autoLoopGuardRef, setMessages, setIsLoading, setBotStatus } = deps;
 
   setMessages((prev) =>
@@ -240,20 +248,31 @@ const evaluateContinuation = (
     return { shouldContinue: false, nextInput: '', interrupted: false };
   }
 
-  // Loop Guard
+  // Loop Guard — use session state as source of truth, sync back to ref
   const looksLikeNarration = looksLikeToolNarrationWithoutCall(fullResponseText);
-  autoLoopGuardRef.current.noToolStreak += 1;
+  const currentStreak = (session?.loopGuardState.noToolStreak ?? autoLoopGuardRef.current.noToolStreak) + 1;
+
+  // Sync both session and ref
+  autoLoopGuardRef.current.noToolStreak = currentStreak;
   autoLoopGuardRef.current.lastNoToolResponseKey = normalizeLoopKey(fullResponseText);
 
-  if (autoLoopGuardRef.current.noToolStreak >= 3) {
-    return { shouldContinue: false, nextInput: '', interrupted: true };
+  let updatedSession = session;
+  if (updatedSession) {
+    updatedSession = updateLoopGuard(updatedSession, {
+      noToolStreak: currentStreak,
+      lastNoToolResponseKey: normalizeLoopKey(fullResponseText),
+    });
+  }
+
+  if (currentStreak >= 3) {
+    return { shouldContinue: false, nextInput: '', interrupted: true, updatedSession };
   }
 
   const nextInput = looksLikeNarration
     ? 'Execute the next tool call now using function calling. Do NOT narrate. If you need context, CALL read_file and proceed.'
     : 'Continue with the next pending task in the plan.';
 
-  return { shouldContinue: true, nextInput, interrupted: false };
+  return { shouldContinue: true, nextInput, interrupted: false, updatedSession };
 };
 
 // ─────────────────────────────────────────────
@@ -390,18 +409,19 @@ export const runAgentLoop = async (
       // 无 tool_call → STEP 7: CONTINUATION
       if (!functionCallData) {
         session = updateLoopGuard(session, { phase: 'idle' });
-        const result = evaluateContinuation(fullResponseText, deps, session);
-        if (result.interrupted) {
+        const contResult = evaluateContinuation(fullResponseText, deps, session);
+        if (contResult.updatedSession) session = contResult.updatedSession;
+        if (contResult.interrupted) {
           session = updateLoopGuard(session, { phase: 'awaiting_user' });
           await persistSession(session);
           showLoopGuardUI(deps, restartLoop);
           return;
         }
-        if (!result.shouldContinue) {
+        if (!contResult.shouldContinue) {
           await persistSession(session);
           return;
         }
-        nextInput = result.nextInput;
+        nextInput = contResult.nextInput;
         continue;
       }
 
@@ -432,11 +452,14 @@ export const runAgentLoop = async (
 
       const toolResult = await toolResultPromise;
 
-      // Save tool result to session
-      session = updateSessionField(session, 'lastToolResult', {
-        success: toolFlowResolved,
-        output: typeof toolResult.nextInput === 'string' ? toolResult.nextInput.slice(0, 500) : 'functionResponse',
-      });
+      // Save actual tool result to session (deposited by toolCallFlow via lastToolResultRef)
+      const captured = deps.lastToolResultRef?.current;
+      if (captured) {
+        session = updateSessionField(session, 'lastToolResult', {
+          success: captured.success,
+          output: captured.output,
+        });
+      }
 
       if (toolResult.done) {
         // UI 中断 (diff confirmation, validation block, etc.)

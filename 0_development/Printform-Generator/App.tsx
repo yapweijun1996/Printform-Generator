@@ -33,6 +33,9 @@ const App: React.FC = () => {
     updateSettings,
     setPreviewSnapshot,
     notifyPreviewSnapshotError,
+    hasResumableSession,
+    resumeSession,
+    clearSession,
   } = useFormBuilder();
 
   const {
@@ -106,6 +109,9 @@ const App: React.FC = () => {
         onRevert={revertToHistory}
         settings={settings}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        hasResumableSession={hasResumableSession}
+        onResumeSession={resumeSession}
+        onClearSession={clearSession}
       />
     </div>
   );

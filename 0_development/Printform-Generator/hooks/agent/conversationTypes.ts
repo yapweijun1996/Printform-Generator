@@ -1,10 +1,18 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { AgentTask, Message, ProjectFile } from '../../types';
 import type { GeminiService } from '../../services/geminiService';
+import type { LoopGuardState } from './sessionManager';
 
 export interface AutoLoopGuardState {
   noToolStreak: number;
   lastNoToolResponseKey: string;
+}
+
+/** Captured tool result for session persistence (set by toolCallFlow, read by agentLoop) */
+export interface CapturedToolResult {
+  success: boolean;
+  output: string;
+  toolName: string;
 }
 
 export interface ConversationHandlerDependencies {
@@ -31,4 +39,6 @@ export interface ConversationHandlerDependencies {
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   setBotStatus: (status: string | undefined) => void;
   autoLoopGuardRef: MutableRefObject<AutoLoopGuardState>;
+  /** Mutable ref for toolCallFlow to deposit the actual tool execution result */
+  lastToolResultRef: MutableRefObject<CapturedToolResult | undefined>;
 }

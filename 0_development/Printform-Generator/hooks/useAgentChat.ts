@@ -46,6 +46,7 @@ export const useAgentChat = ({
   const previewErrorCountRef = useRef(0);
   const previewWarnedRef = useRef(false);
   const autoLoopGuardRef = useRef({ noToolStreak: 0, lastNoToolResponseKey: '' });
+  const lastToolResultRef = useRef<{ success: boolean; output: string; toolName: string } | undefined>(undefined);
 
   // 同步任务状态到 ref
   useEffect(() => {
@@ -172,6 +173,7 @@ export const useAgentChat = ({
       setIsLoading,
       setBotStatus,
       autoLoopGuardRef,
+      lastToolResultRef,
     }, { tryRestore: true });
   }, [settings, getActiveFile, getAllFiles, updateFileContent, revertToLatestHistory, getPreviewSnapshotVersion, setBotStatus, waitForNextPreviewSnapshot]);
 
@@ -247,6 +249,7 @@ export const useAgentChat = ({
         setIsLoading,
         setBotStatus,
         autoLoopGuardRef,
+        lastToolResultRef,
       });
     },
     [
